@@ -34,3 +34,4 @@ jobs:
           if grep -r "AI_PROVIDER=" .env.example; then
             echo "Environment template verified."
           fi
+

@@ -27,3 +27,5 @@ Thumbs.db
 
 # External cloned reference repos (untracked in this project)
 savanna-static/
+
+docs/
