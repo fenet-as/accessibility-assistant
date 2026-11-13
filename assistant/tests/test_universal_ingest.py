@@ -5,6 +5,7 @@ multi-course scoping isolation, and admin management endpoints.
 """
 
 import pytest
+from pathlib import Path
 from fastapi.testclient import TestClient
 from assistant.api.main import app
 from assistant.ingest.universal_chunker import UniversalChunker, slugify
@@ -156,4 +157,106 @@ def test_admin_ingest_ui_endpoint():
     # Alias /api/admin/ui
     res_alias = client.get("/api/admin/ui")
     assert res_alias.status_code == 200
+
+
+def test_bidirectional_multi_course_isolation():
+    """
+    Test bidirectional multi-course scoping:
+    Course A (Python) and Course B (React).
+    Verifies that questions in Scope A only match Course A,
+    and questions in Scope B only match Course B.
+    """
+    course_a = {
+        "course_id": "course:python-bi-test",
+        "course_title": "Python Basics",
+        "lesson_url": "/curriculum/python.html",
+        "content_type": "markdown",
+        "content": "# Python Syntax\nPython uses indentation to define code blocks."
+    }
+    course_b = {
+        "course_id": "course:react-bi-test",
+        "course_title": "React Frontend",
+        "lesson_url": "/curriculum/react.html",
+        "content_type": "markdown",
+        "content": "# React Components\nJSX allows writing HTML-like tags inside JavaScript components."
+    }
+
+    try:
+        # 1. Ingest both
+        res_a = client.post("/api/admin/ingest", json=course_a)
+        assert res_a.status_code == 200
+        res_b = client.post("/api/admin/ingest", json=course_b)
+        assert res_b.status_code == 200
+
+        # 2. Query Python question scoped to Python -> answered
+        res_q_a = client.post("/api/chat", json={
+            "session": "test-learner-1",
+            "message": "Why does Python use indentation in code blocks?",
+            "scope": "course:python-bi-test"
+        })
+        assert res_q_a.status_code == 200
+        assert res_q_a.json()["status"] == "answered"
+
+        # 3. Query same Python question scoped to React -> not_found
+        res_q_a_in_b = client.post("/api/chat", json={
+            "session": "test-learner-1",
+            "message": "Why does Python use indentation in code blocks?",
+            "scope": "course:react-bi-test"
+        })
+        assert res_q_a_in_b.status_code == 200
+        assert res_q_a_in_b.json()["status"] == "not_found"
+
+        # 4. Query React question scoped to React -> answered
+        res_q_b = client.post("/api/chat", json={
+            "session": "test-learner-2",
+            "message": "How does JSX work inside JavaScript components in React?",
+            "scope": "course:react-bi-test"
+        })
+        assert res_q_b.status_code == 200
+        assert res_q_b.json()["status"] == "answered"
+
+        # 5. Query same React question scoped to Python -> not_found
+        res_q_b_in_a = client.post("/api/chat", json={
+            "session": "test-learner-2",
+            "message": "How does JSX work inside JavaScript components in React?",
+            "scope": "course:python-bi-test"
+        })
+        assert res_q_b_in_a.status_code == 200
+        assert res_q_b_in_a.json()["status"] == "not_found"
+
+    finally:
+        # Cleanup
+        client.delete("/api/admin/courses/course:python-bi-test")
+        client.delete("/api/admin/courses/course:react-bi-test")
+
+
+def test_admin_ingest_edge_cases():
+    """Verify error handling for invalid payloads and missing courses."""
+    # Deleting non-existent course returns 404
+    res_del = client.delete("/api/admin/courses/course:non-existent-xyz-999")
+    assert res_del.status_code == 404
+    assert "not found" in res_del.json()["detail"].lower()
+
+    # Ingestion with missing required fields returns 422 (Pydantic validation)
+    res_invalid = client.post("/api/admin/ingest", json={"invalid": "payload"})
+    assert res_invalid.status_code == 422
+
+
+def test_widget_scoping_and_citation_anchor_wiring():
+    """Verify assistant.js contains dynamic scope detection and in-page anchor resolution."""
+    widget_file = Path(__file__).resolve().parent.parent / "widget" / "assistant.js"
+    assert widget_file.exists()
+    content = widget_file.read_text(encoding="utf-8")
+
+    # Scope detection logic
+    assert "detectScope()" in content
+    assert "data-scope" in content
+    assert "meta[name=\"course-id\"]" in content
+    assert "updateScopeBadge()" in content
+    assert "alx-scope-badge" in content
+
+    # In-page deep link resolution
+    assert "targetEl.scrollIntoView" in content
+    assert "targetEl.closest(" in content
+
 

@@ -122,6 +122,20 @@
         gap: 6px;
       }
 
+      .alx-scope-badge {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 9999px;
+        background-color: #e0f2fe;
+        color: #0369a1;
+        text-transform: uppercase;
+        margin-left: 6px;
+        display: inline-block;
+        letter-spacing: 0.3px;
+        vertical-align: middle;
+      }
+
       .alx-header-controls {
         display: flex;
         align-items: center;
@@ -418,6 +432,7 @@
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5z"/>
           </svg>
           <span id="alx-header-label">ALX Learning Assistant</span>
+          <span class="alx-scope-badge" id="alx-scope-badge" aria-label="Course scope">VA-1</span>
         </h2>
         <div class="alx-header-controls">
           <button type="button" class="alx-btn-icon" id="alx-lang-btn" aria-label="English / አማርኛ - Switch language">
@@ -472,7 +487,9 @@
       this.isOpen = false;
       this.currentLang = this.getAttribute('data-lang') || 'auto';
       this.apiUrl = this.getAttribute('data-api') || 'http://localhost:8000/api';
-      this.scope = this.getAttribute('data-source') || 'course:va-1';
+      this.scopeBadge = this.shadowRoot.getElementById('alx-scope-badge');
+      this.scope = this.detectScope();
+      this.updateScopeBadge();
       this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
 
       // Element references
@@ -486,6 +503,45 @@
       this.input = this.shadowRoot.getElementById('alx-input');
       this.voiceBtn = this.shadowRoot.getElementById('alx-voice-btn');
       this.messagesContainer = this.shadowRoot.getElementById('alx-messages');
+    }
+
+    detectScope() {
+      // 1. Explicit component attribute (data-scope, data-source, or data-course-id)
+      if (this.getAttribute('data-scope')) return this.getAttribute('data-scope');
+      if (this.getAttribute('data-source')) return this.getAttribute('data-source');
+      if (this.getAttribute('data-course-id')) return this.getAttribute('data-course-id');
+
+      // 2. Meta tags on host page (<meta name="course-id"> or <meta name="course-scope">)
+      const metaCourse = document.querySelector('meta[name="course-id"], meta[name="course-scope"], meta[name="course"]');
+      if (metaCourse && metaCourse.content) return metaCourse.content.trim();
+
+      // 3. Body/HTML dataset attributes
+      if (document.body && document.body.dataset) {
+        if (document.body.dataset.courseScope) return document.body.dataset.courseScope;
+        if (document.body.dataset.courseId) return document.body.dataset.courseId;
+        if (document.body.dataset.course) return document.body.dataset.course;
+      }
+
+      // 4. URL query parameter (?course_id=... or ?course=... or ?scope=...)
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlCourse = params.get('course_id') || params.get('course') || params.get('scope');
+        if (urlCourse) return urlCourse.trim();
+      } catch (e) {
+        // Safe fallback in sandboxed contexts
+      }
+
+      // 5. Default fallback to VA-1
+      return 'course:va-1';
+    }
+
+    updateScopeBadge() {
+      if (this.scopeBadge) {
+        const cleanScope = (this.scope || 'course:va-1').replace(/^course:/i, '');
+        this.scopeBadge.textContent = cleanScope.toUpperCase();
+        this.scopeBadge.title = `Grounded in curriculum: ${this.scope}`;
+        this.scopeBadge.setAttribute('aria-label', `Curriculum: ${cleanScope}`);
+      }
     }
 
     connectedCallback() {
@@ -515,6 +571,8 @@
 
     open() {
       this.isOpen = true;
+      this.scope = this.detectScope();
+      this.updateScopeBadge();
       this.dialog.removeAttribute('hidden');
       this.launcher.setAttribute('aria-expanded', 'true');
       this.input.focus();
@@ -653,14 +711,17 @@
             const hashMatch = cleanUrl.match(/#([a-zA-Z0-9_\-]+)/);
             if (hashMatch) {
               const anchorId = hashMatch[1];
-              const targetEl = document.getElementById(anchorId);
+              const targetEl = document.getElementById(anchorId) ||
+                               document.querySelector(`[name="${anchorId}"]`) ||
+                               document.querySelector(`[data-anchor="${anchorId}"]`) ||
+                               document.getElementById(anchorId.toLowerCase());
               if (targetEl) {
                 e.preventDefault();
                 // Smooth scroll to target
                 targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
                 // Highlight section heading/paragraph and focus for screen readers
-                const highlightEl = targetEl.closest('h4') || targetEl.parentElement || targetEl;
+                const highlightEl = targetEl.closest('h1, h2, h3, h4, h5, h6, section, article') || targetEl.parentElement || targetEl;
                 highlightEl.setAttribute('tabindex', '-1');
                 highlightEl.focus({ preventScroll: true });
 
@@ -739,6 +800,9 @@
       e.preventDefault();
       const query = this.input.value.trim();
       if (!query) return;
+
+      this.scope = this.detectScope();
+      this.updateScopeBadge();
 
       this.appendMessage(query, 'user');
       this.input.value = '';
@@ -820,6 +884,8 @@
         if (script.getAttribute('data-api')) assistantEl.setAttribute('data-api', script.getAttribute('data-api'));
         if (script.getAttribute('data-lang')) assistantEl.setAttribute('data-lang', script.getAttribute('data-lang'));
         if (script.getAttribute('data-source')) assistantEl.setAttribute('data-source', script.getAttribute('data-source'));
+        if (script.getAttribute('data-scope')) assistantEl.setAttribute('data-scope', script.getAttribute('data-scope'));
+        if (script.getAttribute('data-course-id')) assistantEl.setAttribute('data-course-id', script.getAttribute('data-course-id'));
       }
       document.body.appendChild(assistantEl);
     }
