@@ -2,6 +2,7 @@
   {
     "id": "va-intro-1",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "Introduction & Overview",
     "anchor": "#curriculum_navigation_content",
@@ -14,6 +15,7 @@
   {
     "id": "va-section-2",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "What is Shaping the Future of VA Work?",
     "anchor": "#what-is-shaping-the-future-of-va-work",
@@ -26,6 +28,7 @@
   {
     "id": "va-section-3",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "Artificial Intelligence and the Future of VA Work",
     "anchor": "#artificial-intelligence-and-the-future-of-va-work",
@@ -38,6 +41,7 @@
   {
     "id": "va-section-4",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "What Clients Are Likely to Value More and More",
     "anchor": "#what-clients-are-likely-to-value-more-and-more",
@@ -50,6 +54,7 @@
   {
     "id": "va-section-5",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "What This Means for Aspiring Virtual Assistants",
     "anchor": "#what-this-means-for-aspiring-virtual-assistants",
@@ -62,6 +67,7 @@
   {
     "id": "va-section-6",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "So, is the Future of VA Promising?",
     "anchor": "#so-is-the-future-of-va-promising",
@@ -74,6 +80,7 @@
   {
     "id": "va-section-7",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "Optional Reads and Market Signals",
     "anchor": "#optional-reads-and-market-signals",
@@ -86,6 +93,7 @@
   {
     "id": "va-section-8",
     "course": "VA-1: VA Foundations & Professional Identity",
+    "scope": "course:va-1",
     "title": "The Future of the VA Industry",
     "section": "Up Next",
     "anchor": "#up-next",

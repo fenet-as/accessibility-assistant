@@ -27,6 +27,7 @@ from assistant.core.database import (
     log_escalation,
     get_analytics_summary
 )
+from assistant.ingest.universal_chunker import UniversalChunker
 from assistant.adapters.sms.service import SMSAdapter
 from assistant.adapters.telegram.bot import TelegramAdapter
 
@@ -89,6 +90,22 @@ class SubscriptionRequest(BaseModel):
     channel: str = Field(..., description="'telegram' or 'sms'")
     contact: str = Field(..., description="Phone number or Telegram chat ID")
     category: str = Field(default="all", description="Job category preference")
+
+
+class IngestRequest(BaseModel):
+    course_id: str = Field(..., description="Unique course identifier, e.g. 'course:python-101'")
+    course_title: str = Field(..., description="Human-readable course title, e.g. 'Python Foundations'")
+    lesson_url: str = Field(default="/pages/lesson.html", description="Base lesson URL on LMS")
+    content_type: str = Field(default="markdown", description="'markdown' or 'html'")
+    content: str = Field(..., description="Raw text of the lesson in Markdown or HTML")
+
+
+class IngestResponse(BaseModel):
+    status: str
+    course_id: str
+    chunks_created: int
+    sections: List[str]
+    sample_url: str
 
 
 @app.get("/api/health", tags=["System"])
@@ -298,6 +315,64 @@ async def telegram_webhook(update: Dict[str, Any]) -> Dict[str, Any]:
     """Webhook endpoint receiving updates from Telegram Bot API."""
     result = await telegram_adapter.handle_update(update)
     return {"status": "ok", "result": result}
+
+
+# --- Course Ingestion & Curriculum Management Endpoints ---
+
+@app.post("/api/admin/ingest", tags=["Course Ingestion"], response_model=IngestResponse)
+def admin_ingest_course(req: IngestRequest):
+    """
+    Ingest new course material in Markdown or HTML.
+    Automatically generates section anchors, bilingual keyword tags, and updates retrieval index.
+    """
+    try:
+        chunker = UniversalChunker()
+        chunks = chunker.ingest_course(
+            course_id=req.course_id,
+            course_title=req.course_title,
+            content=req.content,
+            content_type=req.content_type,
+            lesson_url=req.lesson_url
+        )
+        # Reload the grounding engine's retriever so newly ingested chunks are active immediately
+        engine.reload()
+        return IngestResponse(
+            status="success",
+            course_id=req.course_id,
+            chunks_created=len(chunks),
+            sections=[c["section"] for c in chunks],
+            sample_url=chunks[0]["url"] if chunks else req.lesson_url
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Course ingestion failed: {str(e)}")
+
+
+@app.get("/api/admin/courses", tags=["Course Ingestion"])
+def admin_list_courses() -> List[Dict[str, Any]]:
+    """List all currently indexed courses, chunk counts, and section listings."""
+    chunker = UniversalChunker()
+    return chunker.list_courses()
+
+
+@app.delete("/api/admin/courses/{course_id}", tags=["Course Ingestion"])
+def admin_delete_course(course_id: str):
+    """Delete a course and all its indexed chunks from the retrieval engine."""
+    chunker = UniversalChunker()
+    deleted = chunker.delete_course(course_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Course '{course_id}' not found")
+    engine.reload()
+    return {"status": "deleted", "course_id": course_id}
+
+
+@app.get("/admin/ingest", response_class=HTMLResponse, tags=["Course Ingestion"])
+@app.get("/api/admin/ui", response_class=HTMLResponse, tags=["Course Ingestion"], include_in_schema=False)
+def admin_ingest_view() -> HTMLResponse:
+    """Accessible Web Portal for Course Curriculum Ingestion and Management."""
+    path = Path(__file__).resolve().parent / "ingest.html"
+    if path.exists():
+        return HTMLResponse(content=path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Ingest Portal Not Found</h1>", status_code=404)
 
 
 

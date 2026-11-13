@@ -34,6 +34,10 @@ class GroundingEngine:
             return self._explicit_provider
         return get_ai_provider()
 
+    def reload(self):
+        """Reload corpus and passages after an ingestion or deletion event."""
+        self.retriever.reload()
+
     def detect_language(self, text: str, requested_lang: str = "auto") -> str:
         """Detect language if 'auto', otherwise return requested language."""
         if requested_lang in ["am", "en"]:
@@ -55,8 +59,8 @@ class GroundingEngine:
         lang = self.detect_language(request.message, request.language)
         is_simple = (request.mode == "simple")
 
-        # 1. Retrieve candidate passages
-        passages = self.retriever.search(request.message, top_k=3)
+        # 1. Retrieve candidate passages with scope filtering
+        passages = self.retriever.search(request.message, top_k=3, scope=request.scope)
 
         # 2. Rejection rule: If no passages or top score is below threshold
         if not passages or passages[0].score < self.RELEVANCE_THRESHOLD:

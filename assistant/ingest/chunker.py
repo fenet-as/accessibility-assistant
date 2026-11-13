@@ -59,6 +59,7 @@ class CourseChunker:
             chunks.append({
                 "id": f"va-intro-{chunk_idx}",
                 "course": course_name,
+                "scope": "course:va-1",
                 "title": concept_title,
                 "section": "Introduction & Overview",
                 "anchor": "#curriculum_navigation_content",
@@ -119,6 +120,7 @@ class CourseChunker:
             chunks.append({
                 "id": f"va-section-{chunk_idx}",
                 "course": course_name,
+                "scope": "course:va-1",
                 "title": concept_title,
                 "section": section_title,
                 "anchor": f"#{anchor_id}" if anchor_id else "",

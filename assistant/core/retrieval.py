@@ -9,22 +9,22 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Set
+from typing import List, Dict, Any, Tuple, Set, Optional
 from assistant.core.models import Passage
 
 # Common English and Amharic stop words that carry no semantic relevance
 STOP_WORDS: Set[str] = {
     # English
-    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are",
+    "a", "about", "above", "after", "again", "against", "all", "also", "am", "an", "and", "any", "are",
     "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but",
-    "by", "could", "did", "do", "does", "doing", "down", "during", "each", "few", "for", "from",
+    "by", "can", "could", "did", "do", "does", "doing", "down", "during", "each", "few", "find", "for", "from",
     "further", "had", "has", "have", "having", "he", "her", "here", "hers", "herself", "him",
-    "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself", "just", "me",
+    "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself", "just", "make", "me",
     "more", "most", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or",
     "other", "our", "ours", "ourselves", "out", "over", "own", "same", "she", "should", "so",
     "some", "such", "than", "that", "the", "their", "theirs", "them", "themselves", "then",
     "there", "these", "they", "this", "those", "through", "to", "too", "under", "until", "up",
-    "very", "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why",
+    "use", "used", "uses", "using", "very", "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why",
     "will", "with", "would", "you", "your", "yours", "yourself", "yourselves",
     # Amharic common particles
     "ነው", "ናቸው", "ነበር", "እና", "ውስጥ", "ላይ", "ወይ", "ወይም", "ስለ", "ወደ", "እስከ", "እንደ", "ጋር",
@@ -122,8 +122,12 @@ class BM25Retriever:
         for token, freq in self.df.items():
             self.idf[token] = math.log((n_docs - freq + 0.5) / (freq + 0.5) + 1.0)
 
-    def search(self, query: str, top_k: int = 3) -> List[Passage]:
-        """Search corpus using BM25 scoring with content query tokens and section boost."""
+    def reload(self):
+        """Reload corpus from disk after an ingestion or deletion event."""
+        self.load_corpus()
+
+    def search(self, query: str, top_k: int = 3, scope: Optional[str] = None) -> List[Passage]:
+        """Search corpus using BM25 scoring with optional course scope filter."""
         query_tokens = self.tokenize(query, remove_stopwords=True)
         if not query_tokens or not self.passages:
             return []
@@ -134,6 +138,20 @@ class BM25Retriever:
         scores: List[Tuple[int, float]] = []
 
         for idx, (doc_tokens, doc_len) in enumerate(zip(self.corpus_tokens, self.doc_lengths)):
+            p = self.passages[idx]
+            # If scope is specified, skip passages that do not belong to this course
+            if scope and scope not in ["all", "auto"]:
+                chunk_scope = p.get("scope", "")
+                chunk_course = p.get("course", "")
+                matches = (
+                    chunk_scope == scope or
+                    chunk_course == scope or
+                    scope.lower() in chunk_course.lower() or
+                    (not chunk_scope and "va" in scope.lower() and "va" in chunk_course.lower())
+                )
+                if not matches:
+                    continue
+
             doc_tf: Dict[str, int] = {}
             for t in doc_tokens:
                 doc_tf[t] = doc_tf.get(t, 0) + 1
