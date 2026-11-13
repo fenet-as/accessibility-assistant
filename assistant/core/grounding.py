@@ -26,7 +26,13 @@ class GroundingEngine:
             chunks_path = base_dir / "data" / "chunks.json"
 
         self.retriever = BM25Retriever(chunks_path)
-        self.provider = provider or get_ai_provider()
+        self._explicit_provider = provider
+
+    @property
+    def provider(self) -> AIProvider:
+        if self._explicit_provider:
+            return self._explicit_provider
+        return get_ai_provider()
 
     def detect_language(self, text: str, requested_lang: str = "auto") -> str:
         """Detect language if 'auto', otherwise return requested language."""
