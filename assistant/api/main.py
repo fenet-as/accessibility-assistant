@@ -14,6 +14,13 @@ from pydantic import BaseModel, Field
 
 from assistant.core.models import ChatRequest, ChatResponse, ChatStatus
 from assistant.core.grounding import GroundingEngine
+from assistant.core.database import (
+    log_query,
+    add_subscription,
+    add_accommodation,
+    log_escalation,
+    get_analytics_summary
+)
 from assistant.adapters.sms.service import SMSAdapter
 from assistant.adapters.telegram.bot import TelegramAdapter
 
@@ -92,7 +99,16 @@ def health_check() -> Dict[str, Any]:
 @app.post("/api/chat", response_model=ChatResponse, tags=["Tutoring"])
 def chat(request: ChatRequest) -> ChatResponse:
     """Ask a question; returns strictly grounded answers with citations."""
-    return engine.process_query(request)
+    response = engine.process_query(request)
+    log_query(
+        session_id=request.session,
+        message=request.message,
+        language=response.language,
+        status=response.status.value,
+        topic=response.citations[0].section if response.citations else "unresolved",
+        mode=request.mode
+    )
+    return response
 
 
 @app.post("/api/escalate", response_model=EscalationResponse, tags=["Escalation"])
@@ -100,11 +116,13 @@ def escalate(req: EscalationRequest) -> EscalationResponse:
     """One-click human escalation creating a learner-consented support room."""
     ticket = f"HELP-{os.urandom(3).hex().upper()}"
     room = f"ALX-Help-{ticket}"
+    room_url = f"https://meet.jit.si/{room}"
+    log_escalation(ticket, req.session, room_url)
     return EscalationResponse(
         ticket_id=ticket,
         status="pending_tutor",
         message="A live tutor has been notified. You can join the room below when ready to share your screen.",
-        jitsi_room_url=f"https://meet.jit.si/{room}"
+        jitsi_room_url=room_url
     )
 
 
@@ -169,10 +187,10 @@ def list_jobs() -> List[Dict[str, Any]]:
 @app.post("/api/accommodations", tags=["Career Gateway"])
 def submit_accommodation(req: AccommodationRequest) -> Dict[str, Any]:
     """Submit interview accommodation request (privacy-preserving, no medical disclosure)."""
-    record = req.model_dump()
-    ACCOMMODATION_STORE.append(record)
+    rec_id = add_accommodation(req.job_id, req.accommodations, req.contact_channel, req.contact_value)
     return {
         "status": "received",
+        "id": rec_id,
         "message": "Accommodation request recorded. The recruiter will contact you via your chosen channel.",
         "job_id": req.job_id
     }
@@ -181,10 +199,62 @@ def submit_accommodation(req: AccommodationRequest) -> Dict[str, Any]:
 @app.post("/api/subscriptions", tags=["Career Gateway"])
 def subscribe_job_alerts(req: SubscriptionRequest) -> Dict[str, Any]:
     """Subscribe a channel (Telegram or SMS) to job alerts."""
-    SUBSCRIPTIONS_STORE.append(req.model_dump())
+    sub_id = add_subscription(req.channel, req.contact, req.category)
     return {
         "status": "subscribed",
+        "id": sub_id,
         "message": f"Successfully subscribed {req.contact} to job alerts via {req.channel}."
+    }
+
+
+@app.get("/api/analytics/summary", tags=["Analytics"])
+def analytics_summary() -> Dict[str, Any]:
+    """Aggregated, privacy-preserving analytics summary (k-anonymity)."""
+    return get_analytics_summary()
+
+
+@app.get("/analytics", response_class=HTMLResponse, tags=["Analytics"])
+def analytics_dashboard() -> HTMLResponse:
+    """Interactive visual Teacher Analytics Dashboard."""
+    path = Path(__file__).resolve().parent / "analytics.html"
+    if path.exists():
+        return HTMLResponse(content=path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Analytics Dashboard Not Found</h1>")
+
+
+@app.get("/api/lti/config.json", tags=["LTI 1.3 Standard"])
+def lti_configuration() -> Dict[str, Any]:
+    """1EdTech LTI 1.3 standard tool configuration manifest for Canvas/Moodle/Blackboard."""
+    base_host = os.getenv("HOST_URL", "http://localhost:8000")
+    return {
+        "title": "ALX Accessibility Assistant & Tutor",
+        "description": "Accessible multilingual AI tutor and career gateway module.",
+        "oidc_initiation_url": f"{base_host}/api/lti/login",
+        "target_link_uri": f"{base_host}/savanna/pages/concept-with-navigation.html",
+        "extensions": [
+            {
+                "platform": "canvas.instructure.com",
+                "privacy_level": "anonymous",
+                "settings": {
+                    "text": "ALX Tutor",
+                    "placements": [
+                        {"placement": "course_navigation", "message_type": "LtiResourceLinkRequest"}
+                    ]
+                }
+            }
+        ],
+        "public_jwk_url": f"{base_host}/api/lti/jwks.json"
+    }
+
+
+@app.post("/api/lti/launch", tags=["LTI 1.3 Standard"])
+def lti_launch(req: Dict[str, Any] = None) -> Dict[str, Any]:
+    """LTI 1.3 OIDC launch endpoint simulating LMS authentication context."""
+    return {
+        "status": "authenticated",
+        "standard": "LTI-1p3",
+        "context": "VA-1: VA Foundations & Professional Identity",
+        "redirect_url": "/savanna/pages/concept-with-navigation.html"
     }
 
 

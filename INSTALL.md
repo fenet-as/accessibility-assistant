@@ -102,3 +102,4 @@ URL: https://your-domain.com/api/lti/config.json
    * **SMS Simulator:** `http://localhost:8000/sms-simulator`
    * **Accessibility Audit:** `http://localhost:8000/a11y-audit`
    * **API Docs:** `http://localhost:8000/docs`
+

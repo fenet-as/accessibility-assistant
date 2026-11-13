@@ -66,3 +66,4 @@ def test_wcag_conformance_report_exists():
     assert "Principle 2: Operable" in text
     assert "Principle 3: Understandable" in text
     assert "Principle 4: Robust" in text
+
