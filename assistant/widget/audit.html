@@ -186,16 +186,26 @@
           } else {
             container.innerHTML = '<div style="color: #03543f; font-weight: 600; padding: 12px; background: #def7ec; border-radius: 8px;">✓ Zero axe-core violations found!</div>';
           }
+
+          const overallBadge = document.getElementById('overall-badge');
           const gateVerdict = document.getElementById('gate-verdict');
 
           if (critPassed && serPassed) {
-            overallBadge.className = 'badge badge-pass';
-            overallBadge.textContent = 'STAGE 1 GATE PASSED (0 Critical / 0 Serious)';
-            gateVerdict.innerHTML = '<strong style="color: #03543f;">PASS — Eligible for Stage 2 Scoring</strong>';
+            if (overallBadge) {
+              overallBadge.className = 'badge badge-pass';
+              overallBadge.textContent = 'STAGE 1 GATE PASSED (0 Critical / 0 Serious)';
+            }
+            if (gateVerdict) {
+              gateVerdict.innerHTML = '<strong style="color: #03543f;">PASS — Eligible for Stage 2 Scoring</strong>';
+            }
           } else {
-            overallBadge.className = 'badge badge-fail';
-            overallBadge.textContent = 'GATE FAILED';
-            gateVerdict.innerHTML = '<strong style="color: #9b1c1c;">FAIL — Must fix critical/serious issues</strong>';
+            if (overallBadge) {
+              overallBadge.className = 'badge badge-fail';
+              overallBadge.textContent = 'GATE FAILED';
+            }
+            if (gateVerdict) {
+              gateVerdict.innerHTML = '<strong style="color: #9b1c1c;">FAIL — Must fix critical/serious issues</strong>';
+            }
           }
 
           // Expose globally for automated headless test assertion
