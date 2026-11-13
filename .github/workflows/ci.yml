@@ -26,12 +26,14 @@ jobs:
           pip install -r assistant/requirements.txt
 
       - name: Run unit & RAG tests
+        env:
+          PYTHONPATH: .
         run: |
-          pytest assistant/tests/ -v
+          python -m pytest assistant/tests/ -v
 
       - name: Verify zero secrets in repo
         run: |
-          if grep -r "AI_PROVIDER=" .env.example; then
+          if grep -r "AI_PROVIDER=" assistant/.env.example; then
             echo "Environment template verified."
           fi
 
