@@ -316,10 +316,88 @@
         outline-offset: 1px;
       }
 
+      /* Voice Input Button */
+      .alx-btn-voice {
+        background-color: transparent;
+        border: 1px solid var(--alx-border);
+        border-radius: 6px;
+        padding: 0 10px;
+        cursor: pointer;
+        min-width: 40px;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--alx-text);
+        transition: all 0.2s ease;
+      }
+
+      .alx-btn-voice svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      .alx-btn-voice:hover {
+        background-color: #f1f5f9;
+        color: var(--alx-primary);
+      }
+
+      .alx-btn-voice:focus-visible {
+        outline: 3px solid var(--alx-focus);
+        outline-offset: 1px;
+      }
+
+      .alx-btn-voice.listening {
+        background-color: #fee2e2;
+        border-color: #ef4444;
+        color: #dc2626;
+        animation: alx-pulse 1.2s infinite ease-in-out;
+      }
+
+      @keyframes alx-pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+        100% { transform: scale(1); }
+      }
+
+      /* Read Aloud (TTS) Button */
+      .alx-btn-speak {
+        background: transparent;
+        border: 1px solid var(--alx-border);
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--alx-text-muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 6px;
+        min-height: 28px;
+      }
+
+      .alx-btn-speak:hover {
+        background-color: #f1f5f9;
+        color: var(--alx-primary);
+      }
+
+      .alx-btn-speak:focus-visible {
+        outline: 2px solid var(--alx-focus);
+      }
+
+      .alx-btn-speak.speaking {
+        background-color: #eff6ff;
+        border-color: var(--alx-primary);
+        color: var(--alx-primary);
+      }
+
       /* High-contrast and reduced motion */
       @media (prefers-reduced-motion: reduce) {
-        .alx-launcher, .alx-dialog {
+        .alx-launcher, .alx-dialog, .alx-btn-voice.listening {
           transition: none !important;
+          animation: none !important;
         }
       }
     </style>
@@ -374,6 +452,11 @@
         <form class="alx-input-form" id="alx-form">
           <label for="alx-input" class="visually-hidden" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;">Type your question</label>
           <input type="text" class="alx-input-field" id="alx-input" placeholder="Ask a question about this lesson..." autocomplete="off" required />
+          <button type="button" class="alx-btn-voice" id="alx-voice-btn" aria-label="Voice input - Speak your question" aria-pressed="false" title="Voice input">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+          </button>
           <button type="submit" class="alx-btn-send" id="alx-send-btn" aria-label="Send message">Send</button>
         </form>
       </div>
@@ -401,6 +484,7 @@
       this.escalateBtn = this.shadowRoot.getElementById('alx-escalate-btn');
       this.form = this.shadowRoot.getElementById('alx-form');
       this.input = this.shadowRoot.getElementById('alx-input');
+      this.voiceBtn = this.shadowRoot.getElementById('alx-voice-btn');
       this.messagesContainer = this.shadowRoot.getElementById('alx-messages');
     }
 
@@ -411,6 +495,7 @@
       this.langBtn.addEventListener('click', () => this.toggleLanguage());
       this.escalateBtn.addEventListener('click', () => this.requestHumanHelp());
       this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+      this.initVoiceInput();
 
       // Close on Escape key (WCAG Focus Management)
       this.dialog.addEventListener('keydown', (e) => {
@@ -454,6 +539,74 @@
         this.langBtn.setAttribute('aria-label', 'አማርኛ (AM) - Switch language');
         this.input.placeholder = 'ስለዚህ ትምህርት ጥያቄዎን ይጠይቁ...';
       }
+    }
+
+    initVoiceInput() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        if (this.voiceBtn) this.voiceBtn.style.display = 'none';
+        return;
+      }
+
+      try {
+        this.recognition = new SpeechRecognition();
+        this.recognition.continuous = false;
+        this.recognition.interimResults = true;
+        this.isListening = false;
+
+        this.recognition.onstart = () => {
+          this.isListening = true;
+          this.voiceBtn.classList.add('listening');
+          this.voiceBtn.setAttribute('aria-pressed', 'true');
+          this.voiceBtn.setAttribute('aria-label', 'Stop listening - Microphone active');
+          this.input.placeholder = this.currentLang === 'am' ? 'እያዳመጠ ነው... አሁን ይናገሩ' : 'Listening... Speak your question now';
+        };
+
+        this.recognition.onresult = (event) => {
+          const transcript = Array.from(event.results)
+            .map(res => res[0].transcript)
+            .join('');
+          this.input.value = transcript;
+        };
+
+        this.recognition.onerror = (event) => {
+          console.warn('Speech recognition status:', event.error);
+          this.stopListening();
+        };
+
+        this.recognition.onend = () => {
+          this.stopListening();
+        };
+
+        this.voiceBtn.addEventListener('click', () => {
+          if (this.isListening) {
+            this.recognition.stop();
+          } else {
+            this.recognition.lang = this.currentLang === 'am' ? 'am-ET' : 'en-US';
+            try {
+              this.recognition.start();
+            } catch (err) {
+              console.warn('Could not start recognition:', err);
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Speech recognition initialization error:', err);
+        if (this.voiceBtn) this.voiceBtn.style.display = 'none';
+      }
+    }
+
+    stopListening() {
+      this.isListening = false;
+      if (this.voiceBtn) {
+        this.voiceBtn.classList.remove('listening');
+        this.voiceBtn.setAttribute('aria-pressed', 'false');
+        this.voiceBtn.setAttribute('aria-label', 'Voice input - Speak your question');
+      }
+      this.input.placeholder = this.currentLang === 'am' 
+        ? 'ስለዚህ ትምህርት ጥያቄዎን ይጠይቁ...' 
+        : 'Ask a question about this lesson...';
+      this.input.focus();
     }
 
     appendMessage(text, sender, lang = 'auto', citations = []) {
@@ -534,6 +687,48 @@
         });
         citeBox.appendChild(list);
         bubble.appendChild(citeBox);
+      }
+
+      // Accessible Read-Aloud (Text-to-Speech) for assistant responses
+      if (sender === 'assistant' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const speakBtn = document.createElement('button');
+        speakBtn.type = 'button';
+        speakBtn.className = 'alx-btn-speak';
+        speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
+        speakBtn.title = 'Listen to response';
+        speakBtn.innerHTML = `
+          <svg aria-hidden="true" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+          <span class="alx-speak-label">Listen</span>
+        `;
+        speakBtn.addEventListener('click', () => {
+          const labelSpan = speakBtn.querySelector('.alx-speak-label');
+          if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            speakBtn.classList.remove('speaking');
+            if (labelSpan) labelSpan.textContent = 'Listen';
+            speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
+          } else {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = isAmharic ? 'am-ET' : 'en-US';
+            utterance.onend = () => {
+              speakBtn.classList.remove('speaking');
+              if (labelSpan) labelSpan.textContent = 'Listen';
+              speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
+            };
+            utterance.onerror = () => {
+              speakBtn.classList.remove('speaking');
+              if (labelSpan) labelSpan.textContent = 'Listen';
+              speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
+            };
+            speakBtn.classList.add('speaking');
+            if (labelSpan) labelSpan.textContent = 'Stop';
+            speakBtn.setAttribute('aria-label', 'Stop - Stop reading aloud');
+            window.speechSynthesis.speak(utterance);
+          }
+        });
+        bubble.appendChild(speakBtn);
       }
 
       this.messagesContainer.appendChild(bubble);

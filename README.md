@@ -33,6 +33,7 @@ The **ALX Accessibility Assistant** is an accessible, multilingual support syste
 * **Level 1 Drop-in Web Component (`<alx-assistant>`):** Encapsulated in the Shadow DOM to guarantee style isolation, responsive from 320px screens up to 200% browser zoom.
 * **Strictly Grounded RAG with Zero Hallucination:** Answers are strictly grounded in course materials with verifiable section citations. Out-of-scope queries are rejected with 0 citations and an offer of human escalation.
 * **In-Page Smooth Deep-Linking:** Clicking a citation in the assistant scrolls smoothly to the exact cited paragraph in the lesson, highlights it with a soft yellow focus ring, and focuses the heading for screen readers.
+* **Accessible Voice Input & Read-Aloud (Speech-to-Text & Text-to-Speech):** Learners can use their microphone to dictate questions in English or Amharic (`SpeechRecognition`), and visually impaired learners can click **"Listen"** to have any assistant response read aloud (`SpeechSynthesis`) with active stop and audio controls.
 * **Pluggable AI Engine:** Runs 100% offline out-of-the-box (zero paid API lock-in, zero cost), or connects seamlessly to Google Gemini 2.5 Flash when configured.
 * **Bilingual English & Amharic (አማርኛ):** Native support for Ethiopic script (`\u1200-\u137F`), stop-word removal, and Plain Language Simple Mode.
 * **Learner-Controlled Live Escalation:** Anonymous help ticketing with explicit consent gates before launching Jitsi Meet video and screen-sharing sessions.
@@ -326,3 +327,4 @@ accessibility-assistant/
 ## License
 
 This project is submitted to the **ALX Digital Bridge Accessibility Hackathon 2026** under the MIT License.
+
