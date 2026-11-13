@@ -57,3 +57,4 @@ class AIProvider(Protocol):
     ) -> ChatResponse:
         """Generate a grounded response strictly from retrieved passages."""
         ...
+

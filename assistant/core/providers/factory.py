@@ -11,3 +11,4 @@ def get_ai_provider() -> AIProvider:
     if provider_name == "cloud":
         return CloudProvider()
     return OfflineFAQProvider()
+

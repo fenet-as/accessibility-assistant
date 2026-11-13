@@ -99,3 +99,4 @@ class CloudProvider:
             # Fallback to offline FAQ if network or quota issue occurs
             from assistant.core.providers.faq_provider import OfflineFAQProvider
             return OfflineFAQProvider().generate(question, passages, language, simple)
+
