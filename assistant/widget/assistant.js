@@ -575,7 +575,7 @@
   customElements.define('alx-assistant', AlxAssistant);
 
   // Auto-instantiate if loaded via script tag
-  document.addEventListener('DOMContentLoaded', () => {
+  function initAssistant() {
     if (!document.querySelector('alx-assistant')) {
       const script = document.currentScript || document.querySelector('script[src*="assistant.js"]');
       const assistantEl = document.createElement('alx-assistant');
@@ -586,5 +586,12 @@
       }
       document.body.appendChild(assistantEl);
     }
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAssistant);
+  } else {
+    initAssistant();
+  }
 })();
+

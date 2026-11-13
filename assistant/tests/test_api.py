@@ -76,3 +76,4 @@ def test_accommodations_endpoint():
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "received"
+

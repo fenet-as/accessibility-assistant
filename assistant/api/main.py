@@ -4,9 +4,12 @@ Provides documented endpoints for chat, health, escalation, jobs, and accommodat
 """
 
 import os
+from pathlib import Path
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from assistant.core.models import ChatRequest, ChatResponse, ChatStatus
@@ -157,3 +160,24 @@ def submit_accommodation(req: AccommodationRequest) -> Dict[str, Any]:
         "message": "Accommodation request recorded. The recruiter will contact you via your chosen channel.",
         "job_id": req.job_id
     }
+
+
+# Mount Static Files for direct browser preview
+base_dir = Path(__file__).resolve().parent.parent.parent
+savanna_dir = base_dir / "savanna-static"
+widget_dir = base_dir / "assistant" / "widget"
+
+if widget_dir.exists():
+    app.mount("/widget", StaticFiles(directory=str(widget_dir)), name="widget")
+    app.mount("/assistant/widget", StaticFiles(directory=str(widget_dir)), name="assistant_widget")
+
+if savanna_dir.exists():
+    app.mount("/savanna", StaticFiles(directory=str(savanna_dir), html=True), name="savanna")
+
+
+@app.get("/", include_in_schema=False)
+def root_redirect():
+    """Redirect home route directly to the active Savanna concept page."""
+    return RedirectResponse(url="/savanna/pages/concept-with-navigation.html")
+
+
