@@ -57,7 +57,6 @@ def test_wcag_conformance_report_exists():
     base_dir = Path(__file__).resolve().parent.parent.parent
     report = base_dir / "docs" / "WCAG_2.2_AA_Report.md"
     assert report.exists()
-
     text = report.read_text(encoding="utf-8")
     assert "WCAG 2.2 Level AA" in text
     assert "0 Critical" in text
@@ -66,4 +65,21 @@ def test_wcag_conformance_report_exists():
     assert "Principle 2: Operable" in text
     assert "Principle 3: Understandable" in text
     assert "Principle 4: Robust" in text
+
+
+def test_widget_wcag253_label_in_name():
+    """Verify WCAG 2.5.3 (Label in Name): accessible name must contain visible text."""
+    base_dir = Path(__file__).resolve().parent.parent
+    widget_file = base_dir / "widget" / "assistant.js"
+    content = widget_file.read_text(encoding="utf-8")
+
+    # Launcher: visible text "Ask Tutor / ረዳት" must be contained in aria-label
+    assert 'aria-label="Ask Tutor / ረዳት - AI Learning Assistant"' in content
+
+    # Language button: visible text "English / አማርኛ" must be contained in aria-label
+    assert 'aria-label="English / አማርኛ - Switch language"' in content
+
+    # Help button: visible text "Live Human Help" must be contained in aria-label
+    assert 'aria-label="Live Human Help - Request human tutor help"' in content
+
 

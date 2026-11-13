@@ -120,6 +120,8 @@
       <strong>Total Rules Passed:</strong> <span id="rules-passed">Scanning...</span><br />
       <strong>WCAG 2.2 AA Gate Status:</strong> <span id="gate-verdict">Evaluating...</span>
     </div>
+
+    <div id="violations-container" style="margin-top: 20px;"></div>
   </div>
 
   <alx-assistant id="test-assistant" data-api="/api" data-lang="auto"></alx-assistant>
@@ -171,7 +173,19 @@
 
           document.getElementById('rules-passed').textContent = results.passes.length + ' rules passed';
 
-          const overallBadge = document.getElementById('overall-badge');
+          const container = document.getElementById('violations-container');
+          if (results.violations.length > 0) {
+            container.innerHTML = '<h3 style="color: #9b1c1c; font-size: 16px;">Violation Details:</h3>' +
+              results.violations.map(v => `
+                <div style="background: #fff5f5; border: 1px solid #feb2b2; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                  <strong style="color: #c53030;">[${v.impact.toUpperCase()}] ${v.id}: ${v.help}</strong>
+                  <p style="margin: 4px 0; font-size: 13px;">${v.description}</p>
+                  <pre style="background: #edf2f7; padding: 8px; font-size: 12px; overflow-x: auto;">${v.nodes.map(n => n.target.join(', ') + '\n' + (n.failureSummary || '')).join('\n')}</pre>
+                </div>
+              `).join('');
+          } else {
+            container.innerHTML = '<div style="color: #03543f; font-weight: 600; padding: 12px; background: #def7ec; border-radius: 8px;">✓ Zero axe-core violations found!</div>';
+          }
           const gateVerdict = document.getElementById('gate-verdict');
 
           if (critPassed && serPassed) {

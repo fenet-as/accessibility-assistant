@@ -325,7 +325,7 @@
     </style>
 
     <!-- Floating Trigger Button -->
-    <button type="button" class="alx-launcher" id="alx-launcher" aria-haspopup="dialog" aria-expanded="false" aria-label="Open AI Learning Assistant">
+    <button type="button" class="alx-launcher" id="alx-launcher" aria-haspopup="dialog" aria-expanded="false" aria-label="Ask Tutor / ረዳት - AI Learning Assistant">
       <svg aria-hidden="true" viewBox="0 0 24 24">
         <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.08L2 22l5.08-1.38C8.42 21.5 10.15 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/>
       </svg>
@@ -342,7 +342,7 @@
           <span id="alx-header-label">ALX Learning Assistant</span>
         </h2>
         <div class="alx-header-controls">
-          <button type="button" class="alx-btn-icon" id="alx-lang-btn" aria-label="Switch language to Amharic">
+          <button type="button" class="alx-btn-icon" id="alx-lang-btn" aria-label="English / አማርኛ - Switch language">
             English / አማርኛ
           </button>
           <button type="button" class="alx-btn-icon" id="alx-close-btn" aria-label="Close Assistant">
@@ -353,12 +353,12 @@
 
       <div class="alx-toolbar">
         <div class="alx-toggle-group">
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-            <input type="checkbox" id="alx-simple-mode" />
+          <label for="alx-simple-mode" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="alx-simple-mode" aria-label="Simple Mode" />
             <span id="alx-simple-label">Simple Mode</span>
           </label>
         </div>
-        <button type="button" class="alx-btn-help" id="alx-escalate-btn" aria-label="Request human tutor help">
+        <button type="button" class="alx-btn-help" id="alx-escalate-btn" aria-label="Live Human Help - Request human tutor help">
           Live Human Help
         </button>
       </div>
@@ -446,10 +446,12 @@
       if (this.currentLang === 'am') {
         this.currentLang = 'en';
         this.langBtn.textContent = 'English (EN)';
+        this.langBtn.setAttribute('aria-label', 'English (EN) - Switch language');
         this.input.placeholder = 'Ask a question about this lesson...';
       } else {
         this.currentLang = 'am';
         this.langBtn.textContent = 'አማርኛ (AM)';
+        this.langBtn.setAttribute('aria-label', 'አማርኛ (AM) - Switch language');
         this.input.placeholder = 'ስለዚህ ትምህርት ጥያቄዎን ይጠይቁ...';
       }
     }

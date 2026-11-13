@@ -62,3 +62,4 @@ def test_lti_launch_endpoint():
     data = res.json()
     assert data["status"] == "authenticated"
     assert data["standard"] == "LTI-1p3"
+

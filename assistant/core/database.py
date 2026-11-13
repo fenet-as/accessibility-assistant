@@ -177,3 +177,4 @@ def get_analytics_summary() -> Dict[str, Any]:
 
 # Auto-initialize database on import
 init_db()
+
