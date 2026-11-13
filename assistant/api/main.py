@@ -5,6 +5,13 @@ Provides documented endpoints for chat, health, escalation, jobs, and accommodat
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Automatically load environment variables from .env
+_base_dir = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_base_dir / ".env")
+load_dotenv(_base_dir / "assistant" / ".env")
+
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
