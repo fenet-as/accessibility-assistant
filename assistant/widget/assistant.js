@@ -485,10 +485,50 @@
           const item = document.createElement('li');
           const link = document.createElement('a');
           link.className = 'alx-citation-link';
-          link.href = c.url || '#';
+
+          // Ensure absolute rooted path to prevent relative /pages/pages/... nesting
+          let cleanUrl = c.url || '#';
+          if (cleanUrl !== '#' && !cleanUrl.startsWith('/') && !cleanUrl.startsWith('http')) {
+            cleanUrl = '/' + cleanUrl;
+          }
+          link.href = cleanUrl;
           link.textContent = `${c.title} — ${c.section}`;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
+          link.setAttribute('aria-label', `Go to course source: ${c.section}`);
+
+          // In-page deep link handler: smooth scroll and highlight cited paragraph
+          link.addEventListener('click', (e) => {
+            const hashMatch = cleanUrl.match(/#([a-zA-Z0-9_\-]+)/);
+            if (hashMatch) {
+              const anchorId = hashMatch[1];
+              const targetEl = document.getElementById(anchorId);
+              if (targetEl) {
+                e.preventDefault();
+                // Smooth scroll to target
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Highlight section heading/paragraph and focus for screen readers
+                const highlightEl = targetEl.closest('h4') || targetEl.parentElement || targetEl;
+                highlightEl.setAttribute('tabindex', '-1');
+                highlightEl.focus({ preventScroll: true });
+
+                const origBg = highlightEl.style.backgroundColor;
+                const origOutline = highlightEl.style.outline;
+                highlightEl.style.transition = 'background-color 0.4s ease, outline 0.4s ease';
+                highlightEl.style.backgroundColor = '#fef08a';
+                highlightEl.style.outline = '3px solid #eab308';
+                highlightEl.style.outlineOffset = '4px';
+                highlightEl.style.borderRadius = '4px';
+
+                setTimeout(() => {
+                  highlightEl.style.backgroundColor = origBg;
+                  highlightEl.style.outline = origOutline;
+                }, 2500);
+
+                window.history.pushState(null, '', `#${anchorId}`);
+              }
+            }
+          });
+
           item.appendChild(link);
           list.appendChild(item);
         });

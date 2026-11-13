@@ -62,7 +62,7 @@ class CourseChunker:
                 "title": concept_title,
                 "section": "Introduction & Overview",
                 "anchor": "#curriculum_navigation_content",
-                "url": "pages/concept-with-navigation.html#curriculum_navigation_content",
+                "url": "/pages/concept-with-navigation.html#curriculum_navigation_content",
                 "language": "en",
                 "text": full_intro,
                 # Bilingual keywords for Amharic keyword match
@@ -122,7 +122,7 @@ class CourseChunker:
                 "title": concept_title,
                 "section": section_title,
                 "anchor": f"#{anchor_id}" if anchor_id else "",
-                "url": f"pages/concept-with-navigation.html#{anchor_id}" if anchor_id else "pages/concept-with-navigation.html",
+                "url": f"/pages/concept-with-navigation.html#{anchor_id}" if anchor_id else "/pages/concept-with-navigation.html",
                 "language": "en",
                 "text": section_body,
                 "keywords_am": keywords_am,
