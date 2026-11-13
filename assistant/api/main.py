@@ -208,6 +208,15 @@ def sms_simulator_view() -> HTMLResponse:
     return HTMLResponse("<h1>SMS Simulator Not Found</h1>")
 
 
+@app.get("/a11y-audit", response_class=HTMLResponse, tags=["System"])
+def accessibility_audit_view() -> HTMLResponse:
+    """Interactive axe-core Stage 1 accessibility gate audit runner."""
+    audit_path = Path(__file__).resolve().parent.parent / "widget" / "audit.html"
+    if audit_path.exists():
+        return HTMLResponse(content=audit_path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Audit Page Not Found</h1>")
+
+
 @app.post("/api/telegram/webhook", tags=["Telegram Channel"])
 async def telegram_webhook(update: Dict[str, Any]) -> Dict[str, Any]:
     """Webhook endpoint receiving updates from Telegram Bot API."""

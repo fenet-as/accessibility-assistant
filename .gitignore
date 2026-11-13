@@ -25,6 +25,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Node modules
+node_modules/
+package-lock.json
+
 # External cloned reference repos (untracked in this project)
 savanna-static/
 

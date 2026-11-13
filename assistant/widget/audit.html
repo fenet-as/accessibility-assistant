@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ALX Accessibility Gate Verification (axe-core)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      padding: 30px;
+      color: #1e293b;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+      margin-bottom: 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .badge-pass {
+      background: #def7ec;
+      color: #03543f;
+    }
+    .badge-fail {
+      background: #fde8e8;
+      color: #9b1c1c;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 14px;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+    }
+    .status-pill {
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .pill-zero {
+      background: #def7ec;
+      color: #03543f;
+    }
+    .pill-nonzero {
+      background: #fde8e8;
+      color: #9b1c1c;
+    }
+  </style>
+  <script src="/widget/axe.min.js"></script>
+  <script src="/widget/assistant.js" data-api="/api" defer></script>
+</head>
+<body>
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h1 style="margin: 0; font-size: 22px;">Stage 1 Accessibility Gate Automated Audit</h1>
+      <span id="overall-badge" class="badge">Running axe-core...</span>
+    </div>
+    <p style="color: #64748b; font-size: 14px; margin-top: 8px;">
+      Evaluates <code>&lt;alx-assistant&gt;</code> component and Shadow DOM against WCAG 2.2 AA rules using <strong>axe-core</strong>.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Violations Found</th>
+          <th>Requirement for Gate</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="audit-table-body">
+        <tr>
+          <td><strong>Critical</strong></td>
+          <td id="count-critical">Scanning...</td>
+          <td>0 Allowed</td>
+          <td id="status-critical">-</td>
+        </tr>
+        <tr>
+          <td><strong>Serious</strong></td>
+          <td id="count-serious">Scanning...</td>
+          <td>0 Allowed</td>
+          <td id="status-serious">-</td>
+        </tr>
+        <tr>
+          <td><strong>Moderate</strong></td>
+          <td id="count-moderate">Scanning...</td>
+          <td>Advisory</td>
+          <td id="status-moderate">-</td>
+        </tr>
+        <tr>
+          <td><strong>Minor</strong></td>
+          <td id="count-minor">Scanning...</td>
+          <td>Advisory</td>
+          <td id="status-minor">-</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; font-size: 13px;" id="summary-box">
+      <strong>Total Rules Passed:</strong> <span id="rules-passed">Scanning...</span><br />
+      <strong>WCAG 2.2 AA Gate Status:</strong> <span id="gate-verdict">Evaluating...</span>
+    </div>
+  </div>
+
+  <alx-assistant id="test-assistant" data-api="/api" data-lang="auto"></alx-assistant>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Wait for custom element to mount and initialize
+      await customElements.whenDefined('alx-assistant');
+      const widget = document.getElementById('test-assistant');
+
+      // Test open dialog state
+      widget.open();
+
+      setTimeout(async () => {
+        try {
+          const results = await axe.run(widget.shadowRoot, {
+            runOnly: {
+              type: 'tag',
+              values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
+            }
+          });
+
+          let critical = 0, serious = 0, moderate = 0, minor = 0;
+          results.violations.forEach(v => {
+            if (v.impact === 'critical') critical++;
+            if (v.impact === 'serious') serious++;
+            if (v.impact === 'moderate') moderate++;
+            if (v.impact === 'minor') minor++;
+          });
+
+          document.getElementById('count-critical').textContent = critical;
+          document.getElementById('count-serious').textContent = serious;
+          document.getElementById('count-moderate').textContent = moderate;
+          document.getElementById('count-minor').textContent = minor;
+
+          const critPassed = critical === 0;
+          const serPassed = serious === 0;
+
+          document.getElementById('status-critical').innerHTML = critPassed 
+            ? '<span class="status-pill pill-zero">PASS (0)</span>' 
+            : '<span class="status-pill pill-nonzero">FAIL</span>';
+
+          document.getElementById('status-serious').innerHTML = serPassed 
+            ? '<span class="status-pill pill-zero">PASS (0)</span>' 
+            : '<span class="status-pill pill-nonzero">FAIL</span>';
+
+          document.getElementById('status-moderate').innerHTML = '<span class="status-pill pill-zero">' + moderate + '</span>';
+          document.getElementById('status-minor').innerHTML = '<span class="status-pill pill-zero">' + minor + '</span>';
+
+          document.getElementById('rules-passed').textContent = results.passes.length + ' rules passed';
+
+          const overallBadge = document.getElementById('overall-badge');
+          const gateVerdict = document.getElementById('gate-verdict');
+
+          if (critPassed && serPassed) {
+            overallBadge.className = 'badge badge-pass';
+            overallBadge.textContent = 'STAGE 1 GATE PASSED (0 Critical / 0 Serious)';
+            gateVerdict.innerHTML = '<strong style="color: #03543f;">PASS — Eligible for Stage 2 Scoring</strong>';
+          } else {
+            overallBadge.className = 'badge badge-fail';
+            overallBadge.textContent = 'GATE FAILED';
+            gateVerdict.innerHTML = '<strong style="color: #9b1c1c;">FAIL — Must fix critical/serious issues</strong>';
+          }
+
+          // Expose globally for automated headless test assertion
+          window.__AXE_RESULTS__ = {
+            critical,
+            serious,
+            passes: results.passes.length,
+            violations: results.violations
+          };
+        } catch (err) {
+          console.error('axe audit error:', err);
+        }
+      }, 500);
+    });
+  </script>
+</body>
+</html>
