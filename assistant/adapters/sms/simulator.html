@@ -1,11 +1,13 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ALX Low-Bandwidth SMS Simulator | Feature Phone View</title>
   <style>
-    :host, body {
+    :host,
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Ethiopic", sans-serif;
       background: #f0f2f5;
       margin: 0;
@@ -25,7 +27,7 @@
       background: #ffffff;
       padding: 16px 20px;
       border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
       margin-bottom: 20px;
     }
 
@@ -48,7 +50,7 @@
       background: #2b303a;
       border-radius: 36px;
       padding: 20px 14px;
-      box-shadow: 0 16px 36px rgba(0,0,0,0.25);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
       border: 4px solid #1a1d24;
     }
 
@@ -167,13 +169,15 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="header-box">
       <span class="badge-sim">Evaluation Simulator</span>
       <h1 style="font-size: 20px; margin: 8px 0 4px 0;">Low-Bandwidth SMS / Feature Phone Simulator</h1>
       <p style="margin: 0; font-size: 13px; color: #555;">
-        Simulates how Ethiopian learners without smartphones or internet access interact with the assistant via basic SMS over 2G/3G networks.
+        Simulates how Ethiopian learners without smartphones or internet access interact with the assistant via basic
+        SMS over 2G/3G networks.
       </p>
     </div>
 
@@ -195,7 +199,8 @@
         </div>
 
         <form class="screen-input-bar" id="sms-form">
-          <input type="text" id="sms-input" class="sms-field" placeholder="Type SMS (HELP, 1, or query)..." required autocomplete="off" />
+          <input type="text" id="sms-input" class="sms-field" placeholder="Type SMS (HELP, 1, or query)..." required
+            autocomplete="off" />
           <button type="submit" class="btn-sms-send">Send</button>
         </form>
       </div>
@@ -205,8 +210,10 @@
       <button type="button" class="chip-btn" onclick="sendQuick('HELP')">HELP</button>
       <button type="button" class="chip-btn" onclick="sendQuick('1')">1 (Jobs)</button>
       <button type="button" class="chip-btn" onclick="sendQuick('2')">2 (Human Tutor)</button>
-      <button type="button" class="chip-btn" onclick="sendQuick('What is shaping the future of VA work?')">What shapes VA work?</button>
-      <button type="button" class="chip-btn" onclick="sendQuick('ሰው ሰራሽ አስተዋይነት (AI) በቨርቹዋል ረዳቶች ሥራ ላይ ያለው ሚና ምንድን ነው?')">AI በቨርቹዋል ረዳት</button>
+      <button type="button" class="chip-btn" onclick="sendQuick('What is shaping the future of VA work?')">What shapes
+        VA work?</button>
+      <button type="button" class="chip-btn"
+        onclick="sendQuick('ሰው ሰራሽ አስተዋይነት (AI) በቨርቹዋል ረዳቶች ሥራ ላይ ያለው ሚና ምንድን ነው?')">AI በቨርቹዋል ረዳት</button>
     </div>
   </div>
 
@@ -247,7 +254,7 @@
 
         segments.forEach((seg, idx) => {
           setTimeout(() => {
-            appendBubble(seg, 'in', `Part ${idx+1}/${segments.length} · 8080`);
+            appendBubble(seg, 'in', `Part ${idx + 1}/${segments.length} · 8080`);
           }, (idx + 1) * 350);
         });
       } catch (err) {
@@ -256,4 +263,5 @@
     });
   </script>
 </body>
+
 </html>

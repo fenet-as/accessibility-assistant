@@ -92,3 +92,4 @@ class SMSAdapter:
             reply = f"{res.answer}{citation_note}"
 
         return self.split_segments(reply)
+

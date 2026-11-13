@@ -166,3 +166,4 @@ class TelegramAdapter:
             "status": response.status.value,
             "citations": len(response.citations)
         }
+
