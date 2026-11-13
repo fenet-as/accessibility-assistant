@@ -77,3 +77,15 @@ def test_accommodations_endpoint():
     data = res.json()
     assert data["status"] == "received"
 
+
+def test_subscriptions_endpoint():
+    payload = {
+        "channel": "sms",
+        "contact": "+251911223344",
+        "category": "all"
+    }
+    res = client.post("/api/subscriptions", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "subscribed"
+

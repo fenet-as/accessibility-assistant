@@ -9,11 +9,13 @@ from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from assistant.core.models import ChatRequest, ChatResponse, ChatStatus
 from assistant.core.grounding import GroundingEngine
+from assistant.adapters.sms.service import SMSAdapter
+from assistant.adapters.telegram.bot import TelegramAdapter
 
 app = FastAPI(
     title="ALX Accessibility Assistant API",
@@ -33,6 +35,13 @@ app.add_middleware(
 )
 
 engine = GroundingEngine()
+sms_adapter = SMSAdapter()
+telegram_adapter = TelegramAdapter()
+
+
+class SMSInboundRequest(BaseModel):
+    sender: str = Field(default="+251911000000", description="Originating phone number")
+    body: str = Field(..., description="SMS message text")
 
 
 class EscalationRequest(BaseModel):
@@ -60,6 +69,13 @@ class AccommodationRequest(BaseModel):
 
 # In-memory storage for hackathon MVP (no personal data retained)
 ACCOMMODATION_STORE = []
+SUBSCRIPTIONS_STORE = []
+
+
+class SubscriptionRequest(BaseModel):
+    channel: str = Field(..., description="'telegram' or 'sms'")
+    contact: str = Field(..., description="Phone number or Telegram chat ID")
+    category: str = Field(default="all", description="Job category preference")
 
 
 @app.get("/api/health", tags=["System"])
@@ -160,6 +176,44 @@ def submit_accommodation(req: AccommodationRequest) -> Dict[str, Any]:
         "message": "Accommodation request recorded. The recruiter will contact you via your chosen channel.",
         "job_id": req.job_id
     }
+
+
+@app.post("/api/subscriptions", tags=["Career Gateway"])
+def subscribe_job_alerts(req: SubscriptionRequest) -> Dict[str, Any]:
+    """Subscribe a channel (Telegram or SMS) to job alerts."""
+    SUBSCRIPTIONS_STORE.append(req.model_dump())
+    return {
+        "status": "subscribed",
+        "message": f"Successfully subscribed {req.contact} to job alerts via {req.channel}."
+    }
+
+
+@app.post("/api/sms/inbound", tags=["SMS Channel"])
+def sms_inbound(req: SMSInboundRequest) -> Dict[str, Any]:
+    """Inbound SMS endpoint for low-bandwidth users and SMS gateways."""
+    segments = sms_adapter.handle_inbound_sms(req.sender, req.body)
+    return {
+        "sender": req.sender,
+        "segments": segments,
+        "count": len(segments)
+    }
+
+
+@app.get("/sms-simulator", response_class=HTMLResponse, tags=["SMS Channel"])
+def sms_simulator_view() -> HTMLResponse:
+    """Interactive feature phone SMS simulator page for judges and offline demo."""
+    sim_path = Path(__file__).resolve().parent.parent / "adapters" / "sms" / "simulator.html"
+    if sim_path.exists():
+        return HTMLResponse(content=sim_path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>SMS Simulator Not Found</h1>")
+
+
+@app.post("/api/telegram/webhook", tags=["Telegram Channel"])
+async def telegram_webhook(update: Dict[str, Any]) -> Dict[str, Any]:
+    """Webhook endpoint receiving updates from Telegram Bot API."""
+    result = await telegram_adapter.handle_update(update)
+    return {"status": "ok", "result": result}
+
 
 
 # Mount Static Files for direct browser preview
