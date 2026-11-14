@@ -30,6 +30,8 @@ STOP_WORDS: Set[str] = {
     "there", "these", "they", "this", "those", "through", "to", "too", "under", "until", "up",
     "use", "used", "uses", "using", "very", "was", "we", "were", "what", "when", "where", "which",
     "who", "whom", "why", "will", "with", "would", "you", "your", "yours", "yourself", "yourselves",
+    # English contraction fragments and single letter noise
+    "s", "t", "d", "ll", "re", "ve", "m",
     # Amharic particles and question words
     "ነው", "ናቸው", "ነበር", "እና", "ውስጥ", "ላይ", "ወይ", "ወይም", "ስለ", "ወደ", "እስከ", "እንደ", "ጋር",
     "አለ", "አይደለም", "ምን", "ምንድን", "ምንድነው", "እንዴት", "ማን", "የት", "ያለው", "ይህ", "ያ", "ምንም",
@@ -59,6 +61,11 @@ SYNONYM_GROUPS: List[Tuple[str, ...]] = [
     ("ስራ", "ሙያ"),
     ("ደንበኛ", "ተገልጋይ"),
     ("ክህሎት", "ችሎታ"),
+    (
+        "category", "categories", "type", "types", "kind", "kinds",
+        "distinction", "distinctions", "difference", "differences",
+        "specialization", "specializations", "classification", "ክፍል", "ዓይነት",
+    ),
 ]
 
 # Homophone letter families: (row start to rewrite, canonical row start).

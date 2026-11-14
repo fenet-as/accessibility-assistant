@@ -25,18 +25,20 @@ MAX_SUGGESTIONS = 3
 HIGH_CONFIDENCE = 0.6
 
 FOLLOW_UP_MARKERS = {
-    # English demonstratives and follow-up markers
-    "that", "this", "these", "those", "it", "more", "example", "examples",
-    "elaborate", "clarify", "detail", "details",
+    # English demonstratives, pronouns and follow-up markers
+    "that", "this", "these", "those", "it", "its", "they", "them", "their", "more",
+    "example", "examples", "category", "categories", "type", "types", "kind", "kinds",
+    "elaborate", "clarify", "detail", "details", "difference", "distinction", "which",
+    "explain", "tell", "another",
     # Amharic demonstratives and follow-up markers
-    "ይህ", "ይህን", "ያ", "ያንን", "ስለዚህ", "የበለጠ", "ማብራሪያ", "ምሳሌ", "ለምሳሌ", "ተጨማሪ",
+    "ይህ", "ይህን", "ያ", "ያንን", "እነዚህ", "እነዚያ", "ስለዚህ", "የበለጠ", "ማብራሪያ", "ምሳሌ", "ለምሳሌ", "ተጨማሪ", "ዓይነት", "ክፍል",
 }
 WORD_RE = re.compile(r"[\u1200-\u137F]+|[a-zA-Z]+")
 
 
 def is_follow_up(message: str) -> bool:
     words = {w.lower() for w in WORD_RE.findall(message)}
-    return bool(words & FOLLOW_UP_MARKERS) or len(words) <= 4
+    return bool(words & FOLLOW_UP_MARKERS) or len(words) <= 5
 
 
 class TutorService:
@@ -90,33 +92,38 @@ class TutorService:
         confidence = result.top_confidence
 
         # Context-aware query expansion for follow-up questions
+        effective_query = request.message
         if confidence < HIGH_CONFIDENCE and history and is_follow_up(request.message):
             last_user_turn = next((t.content for t in reversed(history) if t.role == "user"), "")
             if last_user_turn and last_user_turn.strip().lower() != request.message.strip().lower():
-                expanded_result = index.retrieve(f"{last_user_turn} {request.message}", TOP_K, request.scope, request.lesson)
+                expanded_query = f"{last_user_turn} {request.message}"
+                expanded_result = index.retrieve(expanded_query, TOP_K, request.scope, request.lesson)
                 prior_result = index.retrieve(last_user_turn, TOP_K, request.scope, request.lesson)
-                candidates = [r for r in (expanded_result, prior_result) if r.passages]
-                if candidates:
-                    best = max(candidates, key=lambda r: r.top_confidence)
-                    if best.top_confidence > confidence:
-                        result = best
-                        confidence = best.top_confidence
+
+                if expanded_result.passages and expanded_result.top_confidence >= self.low_confidence:
+                    result = expanded_result
+                    confidence = expanded_result.top_confidence
+                    effective_query = expanded_query
+                elif prior_result.passages and prior_result.top_confidence > confidence:
+                    result = prior_result
+                    confidence = prior_result.top_confidence
+                    effective_query = expanded_query
 
         if confidence >= HIGH_CONFIDENCE:
             selected = [p for p in result.passages if p.confidence >= self.low_confidence]
             return self._attach_language(
-                self._generate(request, selected, language, confidence, history=history), detection
+                self._generate(request, selected, language, confidence, history=history, effective_query=effective_query), detection
             )
 
         if result.query_terms and confidence < self.low_confidence:
             return self._attach_language(not_found_response(language, round(confidence, 3)), detection)
 
-        wide = index.retrieve(request.message, WIDE_K, request.scope, request.lesson)
+        wide = index.retrieve(effective_query, WIDE_K, request.scope, request.lesson)
         selected = self._select_covering(wide)
         combined = wide.combined_confidence(selected)
         if selected and combined >= HIGH_CONFIDENCE:
             return self._attach_language(
-                self._generate(request, selected, language, combined, history=history), detection
+                self._generate(request, selected, language, combined, history=history, effective_query=effective_query), detection
             )
 
         suggestions = [p.section for p in wide.passages[:MAX_SUGGESTIONS]] or \
@@ -153,9 +160,10 @@ class TutorService:
         language: str,
         confidence: float,
         history: Optional[List[ConversationTurn]] = None,
+        effective_query: Optional[str] = None,
     ):
         response = self.provider.generate(
-            question=request.message,
+            question=effective_query or request.message,
             passages=passages,
             language=language,
             simple=request.simple,
