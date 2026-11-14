@@ -5,11 +5,11 @@ so a learner never sees an error because of the cloud.
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from assistant.domain.language import get_language
 from assistant.domain.messages import not_found_response
-from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, Passage
+from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, ConversationTurn, Passage
 from assistant.domain.ports import AIProvider
 
 try:
@@ -44,7 +44,12 @@ def build_system_instruction(language: str, simple: bool) -> str:
     return "\n".join(rules)
 
 
-def build_prompt(question: str, passages: List[Passage], language: str) -> str:
+def build_prompt(
+    question: str,
+    passages: List[Passage],
+    language: str,
+    history: Optional[List[ConversationTurn]] = None,
+) -> str:
     """Only the retrieved passages (at most MAX_PASSAGES, each trimmed) are sent, never the whole course."""
     blocks = []
     for p in passages[:MAX_PASSAGES]:
@@ -54,7 +59,14 @@ def build_prompt(question: str, passages: List[Passage], language: str) -> str:
             body = f"{translated}\n\n[Original course text]\n{body}"
         blocks.append(f"[Source: {p.title} | Section: {p.section}]\n{body}")
     context = "\n\n".join(blocks)
-    return f"COURSE PASSAGES:\n{context}\n\nLEARNER QUESTION: {question}\n\nANSWER:"
+
+    conversation_context = ""
+    if history:
+        turns = [f"{'Learner' if t.role == 'user' else 'Tutor'}: {t.content}" for t in history[-3:] if t.content]
+        if turns:
+            conversation_context = "RECENT CONVERSATION CONTEXT:\n" + "\n".join(turns) + "\n\n"
+
+    return f"COURSE PASSAGES:\n{context}\n\n{conversation_context}CURRENT LEARNER QUESTION: {question}\n\nANSWER:"
 
 
 def cited_passages(answer: str, passages: List[Passage]) -> List[Passage]:
@@ -77,14 +89,15 @@ class GeminiProvider:
         passages: List[Passage],
         language: str,
         simple: bool = False,
+        history: Optional[List[ConversationTurn]] = None,
     ) -> ChatResponse:
         if not self.client:
-            return self.fallback.generate(question, passages, language, simple)
+            return self.fallback.generate(question, passages, language, simple, history=history)
 
         try:
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=build_prompt(question, passages, language),
+                contents=build_prompt(question, passages, language, history=history),
                 config=types.GenerateContentConfig(
                     system_instruction=build_system_instruction(language, simple),
                     temperature=0.1,

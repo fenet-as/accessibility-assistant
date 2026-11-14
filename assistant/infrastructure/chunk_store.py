@@ -12,7 +12,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from assistant.domain.knowledge import SCHEMA_VERSION, compute_kb_version, validate_chunks
 
@@ -35,19 +35,27 @@ class UpsertResult:
 
 
 class ChunkStore:
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, path: Path, db: Optional[Any] = None):
+        self.path = Path(path)
+        self.db = db
         self._write_lock = threading.Lock()
+        self._db_version = 0
 
     @property
     def version(self) -> int:
+        if self.db is not None:
+            return self._db_version
         try:
             return self.path.stat().st_mtime_ns
         except FileNotFoundError:
             return 0
 
     def load(self) -> List[Chunk]:
-        """Validated chunks; legacy (v1) chunks are upgraded in memory."""
+        """Validated chunks from SQLite database if configured, otherwise from JSON file."""
+        if self.db is not None:
+            db_chunks = self.db.list_course_chunks()
+            if db_chunks:
+                return validate_chunks(db_chunks)
         if not self.path.exists():
             return []
         with open(self.path, "r", encoding="utf-8") as f:
@@ -58,6 +66,11 @@ class ChunkStore:
     def save(self, chunks: List[Chunk]) -> str:
         chunks = validate_chunks(chunks)
         kb_version = compute_kb_version(chunks)
+        if self.db is not None:
+            with self._write_lock:
+                self.db.delete_course_chunks("%")
+                self.db.save_course_chunks(chunks)
+                self._db_version += 1
         document = {"schema_version": SCHEMA_VERSION, "kb_version": kb_version, "chunks": chunks}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._write_lock:
@@ -72,7 +85,15 @@ class ChunkStore:
         return kb_version
 
     def seed_from(self, source: Path) -> None:
-        """First start on a fresh volume: copy the bundled corpus so learners get answers at once."""
+        """First start on a fresh volume or database: seed corpus into SQLite and/or file."""
+        if self.db is not None and self.db.count_course_chunks() == 0 and source.exists():
+            with open(source, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            raw = data["chunks"] if isinstance(data, dict) else data
+            chunks = validate_chunks(raw)
+            self.db.save_course_chunks(chunks)
+            self._db_version += 1
+
         if not self.path.exists() and source.exists() and source.resolve() != self.path.resolve():
             self.path.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp_name = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")

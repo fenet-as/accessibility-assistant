@@ -15,12 +15,18 @@ def sms(container):
 def telegram(container):
     adapter = TelegramAdapter(container, token="MOCK_TEST_TOKEN")
     adapter.sent = []
+    adapter.answered_callbacks = []
 
     async def fake_send(chat_id, text, reply_markup=None):
         adapter.sent.append({"chat_id": chat_id, "text": text, "reply_markup": reply_markup})
         return True
 
+    async def fake_answer_cb(callback_id, text=None):
+        adapter.answered_callbacks.append({"id": callback_id, "text": text})
+        return True
+
     adapter.send_message = fake_send
+    adapter.answer_callback_query = fake_answer_cb
     return adapter
 
 
@@ -28,8 +34,8 @@ def message(text, chat_id=12345):
     return {"message": {"chat": {"id": chat_id}, "text": text}}
 
 
-def callback(data, chat_id=12345):
-    return {"callback_query": {"data": data, "message": {"chat": {"id": chat_id}}}}
+def callback(data, chat_id=12345, query_id="cb-default"):
+    return {"callback_query": {"id": query_id, "data": data, "message": {"chat": {"id": chat_id}}}}
 
 
 def test_sms_help_menu(sms):
@@ -81,8 +87,9 @@ async def test_telegram_human_escalation(telegram):
 @pytest.mark.anyio
 async def test_telegram_jobs_command_and_button(telegram):
     assert (await telegram.handle_update(message("/jobs")))["action"] == "jobs"
-    assert (await telegram.handle_update(callback("jobs_view")))["action"] == "jobs"
+    assert (await telegram.handle_update(callback("jobs_view", query_id="cb-jobs-123")))["action"] == "jobs"
     assert "Junior Virtual Assistant" in telegram.sent[0]["text"]
+    assert any(cb["id"] == "cb-jobs-123" for cb in telegram.answered_callbacks)
 
 
 @pytest.mark.anyio

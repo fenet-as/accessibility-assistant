@@ -98,3 +98,129 @@ def translation_notice(language: str) -> str:
 
 def welcome_message(language: str) -> str:
     return ui_string(language if language in TRANSLATION_UNAVAILABLE else "en", "welcome")
+
+
+# ── Greeting / social message handling ───────────────────────────────────────
+
+GREETING_PATTERNS: Dict[str, List[str]] = {
+    "en": ["hi", "hello", "hey", "howdy", "good morning", "good afternoon", "good evening", "greetings", "sup", "what's up"],
+    "am": ["ሰላም", "ሄሎ", "ጤና ይስጥልኝ", "እንደምን አደሩ", "እንደምን ነህ", "እንደምን ናችሁ"],
+    "ti": ["ሰላም", "ሄሎ", "ከመይ ኣለኻ", "ከመይ ሃሎ"],
+    "om": ["nagaa", "akkam", "salaam", "asalaamaleykum"],
+    "so": ["nabadgelyo", "nabad", "salaan", "asc", "assalamu calaykum"],
+    "ar": ["مرحبا", "السلام عليكم", "أهلا", "هلا", "مرحباً"],
+}
+
+FAREWELL_PATTERNS: Dict[str, List[str]] = {
+    "en": ["bye", "goodbye", "see you", "see ya", "cya", "later", "take care", "farewell", "good night", "ttyl"],
+    "am": ["ቻው", "ሰላም ሁን", "በዳሜ", "እስኪ ልሄድ"],
+    "ti": ["ሰላም ኩን", "ቻው"],
+    "om": ["nagatti", "nagaya", "nagaan tura"],
+    "so": ["nabadgelyo", "nabad", "mahadsanid"],
+    "ar": ["مع السلامة", "وداعا", "إلى اللقاء", "باي"],
+}
+
+THANKS_PATTERNS: Dict[str, List[str]] = {
+    "en": ["thanks", "thank you", "thx", "ty", "cheers", "appreciate", "much appreciated"],
+    "am": ["አመሰግናለሁ", "ሞጋሽ", "ኣምስጋናሁ"],
+    "ti": ["የቐንየለይ", "ብዙሕ የቐንየለይ"],
+    "om": ["galatoomaa", "baay'ee galatoomaa"],
+    "so": ["mahadsanid", "aad ayaad u mahadsan tahay"],
+    "ar": ["شكراً", "شكرا", "ممنون", "جزاك الله خيرا"],
+}
+
+GREETING_REPLY: Dict[str, str] = {
+    "en": "Hello! 👋 I'm your Savanna learning assistant. Ask me anything about your VA course — lessons, concepts, or career tips!",
+    "am": "ሰላም! 👋 እኔ የሳቫና ትምህርት ረዳትዎ ነኝ። ስለ ቨርቹዋል ረዳትነት ትምህርቶ ማንኛውንም ጥያቄ ይጠይቁኝ!",
+    "ti": "ሰላም! 👋 ናይ ሳቫና ትምህርቲ ሓጋዚኻ እየ። ብዛዕባ ቨርቹዋል ኣሲስታንት ትምህርቲ ዝኾነ ሕቶ ሕተተኒ!",
+    "om": "Nagaa! 👋 Ani gargaaraa barnootaa Savanna kee nan ta'a. Barnootaa VA kee irratti gaaffii kamiyyuu naaf gaafadhu!",
+    "so": "Nabad! 👋 Waxaan ahay kaaliyahaaga waxbarashada Savanna. Wax kasta oo ku saabsan koorsadaada VA ah iga weydii!",
+    "ar": "مرحباً! 👋 أنا مساعدك التعليمي في Savanna. اسألني عن أي شيء يتعلق بدورتك في المساعدة الافتراضية!",
+}
+
+FAREWELL_REPLY: Dict[str, str] = {
+    "en": "Goodbye! 👋 Good luck with your studies. Come back anytime you have questions!",
+    "am": "ቻው! 👋 ትምህርትዎ ይሳካ። ጥያቄ ሲኖርዎ ወደ እኛ ይመለሱ!",
+    "ti": "ቻው! 👋 ትምህርትኻ ይሰልጥ። ሕቶ ምስ ሃለዉካ ተመለስ!",
+    "om": "Nagatti! 👋 Barnoochiif milkaa'ina haa argattan. Gaaffii yoo qabdan deebi'aa!",
+    "so": "Nabadgelyo! 👋 Barashaada ugu barakayso. Mar kasta oo su'aal qabto ku soo noqo!",
+    "ar": "مع السلامة! 👋 بالتوفيق في دراستك. عُد في أي وقت لديك أسئلة!",
+}
+
+THANKS_REPLY: Dict[str, str] = {
+    "en": "You're welcome! 😊 Let me know if you have any more questions about the course.",
+    "am": "እባክዎ! 😊 ሌላ ጥያቄ ካለዎ ያሳውቁኝ።",
+    "ti": "ብዘይ ምስጋና! 😊 ካልእ ሕቶ ምስ ሃለዉካ ሓብረኒ።",
+    "om": "Dheebuu! 😊 Gaaffii biroo yoo qabdan naaf beeksisi.",
+    "so": "Adigaa mudan! 😊 Su'aal kale haddaad qabto i ogeysii.",
+    "ar": "على الرحب والسعة! 😊 أخبرني إن كان لديك المزيد من الأسئلة حول الدورة.",
+}
+
+
+def _matches_patterns(text: str, patterns: Dict[str, List[str]]) -> bool:
+    """Return True if the text (whole message, lowercased) is a social phrase.
+    Uses whole-word matching to prevent false positives (e.g. 'tyre' vs 'ty').
+    Only triggers when the entire message is essentially a social phrase,
+    not when it's embedded in a longer question.
+    """
+    lowered = text.strip().lower()
+    # Only intercept short messages (<=6 words) to avoid swallowing real questions
+    word_count = len(lowered.split())
+    if word_count > 6:
+        return False
+    import re
+    for _, phrases in patterns.items():
+        for phrase in phrases:
+            # Whole-phrase match at word boundaries
+            pattern = r"(?<![a-zA-Z\u1200-\u137F\u0600-\u06FF])" + re.escape(phrase) + r"(?![a-zA-Z\u1200-\u137F\u0600-\u06FF])"
+            if re.search(pattern, lowered):
+                return True
+    return False
+
+
+def greeting_response(language: str) -> ChatResponse:
+    return ChatResponse(
+        status=ChatStatus.ANSWERED,
+        language=language,
+        answer=localized(GREETING_REPLY, language),
+        citations=[],
+        actions=[],
+        confidence=1.0,
+    )
+
+
+def farewell_response(language: str) -> ChatResponse:
+    return ChatResponse(
+        status=ChatStatus.ANSWERED,
+        language=language,
+        answer=localized(FAREWELL_REPLY, language),
+        citations=[],
+        actions=[],
+        confidence=1.0,
+    )
+
+
+def thanks_response(language: str) -> ChatResponse:
+    return ChatResponse(
+        status=ChatStatus.ANSWERED,
+        language=language,
+        answer=localized(THANKS_REPLY, language),
+        citations=[],
+        actions=[],
+        confidence=1.0,
+    )
+
+
+def detect_social_response(message: str, language: str) -> Optional[ChatResponse]:
+    """
+    If the message is a greeting, farewell, or thanks, return an appropriate
+    ChatResponse immediately — bypassing BM25 retrieval entirely.
+    Returns None if this is a real course question.
+    """
+    if _matches_patterns(message, GREETING_PATTERNS):
+        return greeting_response(language)
+    if _matches_patterns(message, FAREWELL_PATTERNS):
+        return farewell_response(language)
+    if _matches_patterns(message, THANKS_PATTERNS):
+        return thanks_response(language)
+    return None

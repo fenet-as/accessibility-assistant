@@ -100,6 +100,10 @@ def test_index_reloads_when_another_worker_changes_the_corpus(container, tmp_pat
     question = ChatRequest(message="How does photosynthesis convert sunlight?", scope="course:bio")
     assert worker_a.answer(question).status == ChatStatus.NOT_FOUND
 
+    # Allow Windows NTFS timestamp tick (10-15ms) to advance before external modification
+    import time
+    time.sleep(0.02)
+
     worker_b.store.upsert_lesson("course:bio", "plants", [{
         "id": "bio-1", "course": "Biology", "scope": "course:bio", "lesson_id": "plants", "title": "Biology",
         "section": "Photosynthesis", "anchor": "#photosynthesis", "url": "/bio#photosynthesis",

@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 from assistant.domain.messages import not_found_response, translation_notice
-from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, Passage
-from assistant.infrastructure.text_analysis import analyze
+from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, ConversationTurn, Passage
+from assistant.infrastructure.text_analysis import analyze, synonyms_of
 
 MIN_SENTENCE_LENGTH = 10
-SENTENCES_NORMAL = 4
+SENTENCES_NORMAL = 6
 SENTENCES_SIMPLE = 2
-SENTENCES_SUPPORTING = 1
+SENTENCES_SUPPORTING = 2
 MAX_PASSAGES = 3
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?።؟])\s+")
 
@@ -34,6 +34,8 @@ def best_sentences(text: str, query_terms: Set[str], limit: int) -> str:
     """The `limit` sentences sharing most terms with the question, kept in reading order."""
     sentences = [s.strip() for s in SENTENCE_SPLIT.split(text) if len(s.strip()) > MIN_SENTENCE_LENGTH]
     if not sentences:
+        return text.strip()
+    if len(sentences) <= limit:
         return text.strip()
     ranked = sorted(range(len(sentences)),
                     key=lambda i: (-len(query_terms & set(analyze(sentences[i]))), i))
@@ -53,12 +55,22 @@ class OfflineFAQProvider:
         passages: List[Passage],
         language: str,
         simple: bool = False,
+        history: Optional[List[ConversationTurn]] = None,
     ) -> ChatResponse:
         if not passages:
             return not_found_response(language)
 
         used = self._passages_to_use(passages)
         query_terms = set(analyze(question))
+        for t in list(query_terms):
+            query_terms.update(synonyms_of(t))
+        if history:
+            last_user = next((t.content for t in reversed(history) if t.role == "user"), "")
+            if last_user and last_user.strip().lower() != question.strip().lower():
+                for t in analyze(last_user):
+                    query_terms.add(t)
+                    query_terms.update(synonyms_of(t))
+
         parts: List[str] = []
         used_fallback = False
         for position, passage in enumerate(used):
