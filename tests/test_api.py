@@ -29,42 +29,33 @@ def test_chat_endpoint_in_scope(client):
     assert len(data["citations"]) > 0
 
 
-def test_chat_multi_turn_conversation_memory(client):
-    # Turn 1: Main topic question
+def test_chat_multi_turn_with_client_history(client):
+    # Turn 1: Initial user question
     res1 = client.post("/api/chat", json={
-        "session": "session-multi-1",
+        "session": "test-session-multiturn",
         "message": "How can AI tools support virtual assistants?",
         "language": "en",
     })
     assert res1.status_code == 200
     data1 = res1.json()
     assert data1["status"] == "answered"
-    assert any("Artificial Intelligence" in c["section"] for c in data1["citations"])
+    assert "Artificial Intelligence" in data1["citations"][0]["section"]
 
-    # Turn 2: Contextual follow-up with history passed in payload
+    # Turn 2: Follow-up question relying on previous turn context from client localStorage
+    client_history = [
+        {"role": "user", "content": "How can AI tools support virtual assistants?"},
+        {"role": "assistant", "content": data1["answer"]},
+    ]
     res2 = client.post("/api/chat", json={
-        "session": "session-multi-1",
+        "session": "test-session-multiturn",
         "message": "Can you give me an example of that?",
         "language": "en",
-        "history": [
-            {"role": "user", "content": "How can AI tools support virtual assistants?"},
-            {"role": "assistant", "content": data1["answer"]},
-        ],
+        "history": client_history,
     })
     assert res2.status_code == 200
     data2 = res2.json()
     assert data2["status"] == "answered"
-    assert any("Artificial Intelligence" in c["section"] for c in data2["citations"])
-
-    # Turn 3: Contextual follow-up drawing from database session memory
-    res3 = client.post("/api/chat", json={
-        "session": "session-multi-1",
-        "message": "Why is that important?",
-        "language": "en",
-    })
-    assert res3.status_code == 200
-    data3 = res3.json()
-    assert data3["status"] == "answered"
+    assert "Artificial Intelligence" in data2["citations"][0]["section"]
 
 
 def test_chat_endpoint_out_of_scope(client):

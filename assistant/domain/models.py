@@ -60,7 +60,8 @@ class ChatRequest(BaseModel):
     scope: str = Field(default="course:va-1", description="Course scope to ground answers in")
     lesson: Optional[str] = Field(default=None, description="Optional lesson id to restrict retrieval to")
     history: List[ConversationTurn] = Field(
-        default_factory=list, description="Recent conversation turns (user/assistant) for context"
+        default_factory=list,
+        description="Recent conversation turns from client localStorage for multi-turn contextual grounding",
     )
 
     @property

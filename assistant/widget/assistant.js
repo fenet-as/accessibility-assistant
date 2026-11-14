@@ -395,6 +395,7 @@
         <div class="alx-header-controls">
           <label class="alx-lang-label" for="alx-lang-select" id="alx-lang-label">Language</label>
           <select class="alx-lang-select" id="alx-lang-select" aria-label="Select response language"></select>
+          <button type="button" class="alx-btn-icon" id="alx-clear-btn" title="Clear chat history" aria-label="Clear chat history">🗑️</button>
           <button type="button" class="alx-btn-icon" id="alx-close-btn" aria-label="Close Assistant">✕</button>
         </div>
       </div>
@@ -453,7 +454,6 @@
       this.scope = this.detectScope();
       this.updateScopeBadge();
       this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
-      this.recentTurns = [];
       this.ttsVoices = [];
       this.speechSupported = false;
       this.ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -461,6 +461,7 @@
       this.launcher = this.shadowRoot.getElementById('alx-launcher');
       this.dialog = this.shadowRoot.getElementById('alx-dialog');
       this.closeBtn = this.shadowRoot.getElementById('alx-close-btn');
+      this.clearBtn = this.shadowRoot.getElementById('alx-clear-btn');
       this.langSelect = this.shadowRoot.getElementById('alx-lang-select');
       this.simpleModeCheck = this.shadowRoot.getElementById('alx-simple-mode');
       this.escalateBtn = this.shadowRoot.getElementById('alx-escalate-btn');
@@ -491,6 +492,56 @@
       try {
         localStorage.setItem('alx-assistant-lang', code);
       } catch (e) { /* private browsing */ }
+    }
+
+    _storageKey() {
+      return 'alx_chat_history_' + (this.scope || 'default');
+    }
+
+    _loadStoredHistory() {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const raw = window.localStorage.getItem(this._storageKey());
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+          }
+        }
+      } catch (e) {}
+      return [];
+    }
+
+    _saveStoredHistory() {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(this._storageKey(), JSON.stringify((this.chatHistory || []).slice(-20)));
+        }
+      } catch (e) {}
+    }
+
+    clearChatHistory() {
+      this.chatHistory = [];
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(this._storageKey());
+        }
+      } catch (e) {}
+      this.messagesContainer.innerHTML = '';
+      if (this.welcomeBubble) {
+        this.welcomeBubble.textContent = this.t('welcome');
+        this.messagesContainer.appendChild(this.welcomeBubble);
+      }
+    }
+
+    _restoreStoredHistoryUI() {
+      if (!Array.isArray(this.chatHistory) || this.chatHistory.length === 0) return;
+      for (const turn of this.chatHistory) {
+        if (turn.role === 'user') {
+          this.appendMessage(turn.content, 'user', turn.lang || this.uiLangCode());
+        } else if (turn.role === 'assistant') {
+          this.appendMessage(turn.content, 'assistant', turn.lang || this.uiLangCode(), turn.citations || []);
+        }
+      }
     }
 
     t(key) {
@@ -536,6 +587,9 @@
       this.applyLanguage();
       this.launcher.addEventListener('click', () => this.toggle());
       this.closeBtn.addEventListener('click', () => this.close());
+      if (this.clearBtn) this.clearBtn.addEventListener('click', () => this.clearChatHistory());
+      this.chatHistory = this._loadStoredHistory();
+      this._restoreStoredHistoryUI();
       this.langSelect.addEventListener('change', () => {
         this.currentLang = this.langSelect.value;
         this._saveLang(this.currentLang);
@@ -995,7 +1049,6 @@
       this.updateScopeBadge();
       this.appendMessage(query, 'user', this.uiLangCode());
       this.input.value = '';
-      this.recentTurns.push({ role: 'user', content: query });
 
       const online = typeof navigator === 'undefined' ? true : navigator.onLine;
       const statusBubble = document.createElement('div');
@@ -1004,13 +1057,18 @@
       this.messagesContainer.appendChild(statusBubble);
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
+      const recentHistory = (this.chatHistory || []).slice(-4).map(t => ({ role: t.role, content: t.content }));
+      this.chatHistory = this.chatHistory || [];
+      this.chatHistory.push({ role: 'user', content: query, lang: this.uiLangCode() });
+      this._saveStoredHistory();
+
       const payload = {
         session: this.sessionId,
         message: query,
         language: this.currentLang,
         mode: this.simpleModeCheck.checked ? 'simple' : 'normal',
         scope: this.scope,
-        history: this.recentTurns.slice(0, -1).slice(-4),
+        history: recentHistory,
       };
 
       try {
@@ -1073,8 +1131,14 @@
 
     renderAssistantResponse(data) {
       if (data && data.answer) {
-        this.recentTurns.push({ role: 'assistant', content: data.answer });
-        if (this.recentTurns.length > 8) this.recentTurns = this.recentTurns.slice(-8);
+        this.chatHistory = this.chatHistory || [];
+        this.chatHistory.push({
+          role: 'assistant',
+          content: data.answer,
+          lang: data.language,
+          citations: data.citations || [],
+        });
+        this._saveStoredHistory();
       }
       const beforeCount = this.messagesContainer.children.length;
       this.appendMessage(data.answer, 'assistant', data.language, data.citations || []);

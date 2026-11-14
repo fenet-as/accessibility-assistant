@@ -21,9 +21,6 @@ class AnalyticsService:
             topic=response.citations[0].section if response.citations else UNRESOLVED_TOPIC,
             mode=request.mode,
         )
-        self.db.save_turn(request.session, "user", request.message)
-        if response.answer:
-            self.db.save_turn(request.session, "assistant", response.answer)
 
     def summary(self) -> Dict[str, Any]:
         return self.db.analytics_summary()

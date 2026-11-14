@@ -5,11 +5,11 @@ so a learner never sees an error because of the cloud.
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from assistant.domain.language import get_language
 from assistant.domain.messages import not_found_response
-from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, Passage
+from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, ConversationTurn, Passage
 from assistant.domain.ports import AIProvider
 
 try:
@@ -48,7 +48,7 @@ def build_prompt(
     question: str,
     passages: List[Passage],
     language: str,
-    history: Optional[List[Any]] = None,
+    history: Optional[List[ConversationTurn]] = None,
 ) -> str:
     """Only the retrieved passages (at most MAX_PASSAGES, each trimmed) are sent, never the whole course."""
     blocks = []
@@ -60,16 +60,13 @@ def build_prompt(
         blocks.append(f"[Source: {p.title} | Section: {p.section}]\n{body}")
     context = "\n\n".join(blocks)
 
-    history_str = ""
+    conversation_context = ""
     if history:
-        turns = []
-        for t in history[-4:]:
-            role = "Learner" if getattr(t, "role", "") == "user" else "Tutor"
-            turns.append(f"{role}: {getattr(t, 'content', '')}")
+        turns = [f"{'Learner' if t.role == 'user' else 'Tutor'}: {t.content}" for t in history[-3:] if t.content]
         if turns:
-            history_str = "RECENT CONVERSATION HISTORY:\n" + "\n".join(turns) + "\n\n"
+            conversation_context = "RECENT CONVERSATION CONTEXT:\n" + "\n".join(turns) + "\n\n"
 
-    return f"{history_str}COURSE PASSAGES:\n{context}\n\nLEARNER QUESTION: {question}\n\nANSWER:"
+    return f"COURSE PASSAGES:\n{context}\n\n{conversation_context}CURRENT LEARNER QUESTION: {question}\n\nANSWER:"
 
 
 def cited_passages(answer: str, passages: List[Passage]) -> List[Passage]:
@@ -92,7 +89,7 @@ class GeminiProvider:
         passages: List[Passage],
         language: str,
         simple: bool = False,
-        history: Optional[List[Any]] = None,
+        history: Optional[List[ConversationTurn]] = None,
     ) -> ChatResponse:
         if not self.client:
             return self.fallback.generate(question, passages, language, simple, history=history)
@@ -108,7 +105,7 @@ class GeminiProvider:
             )
         except Exception:
             logger.warning("Gemini call failed; using offline fallback", exc_info=True)
-            return self.fallback.generate(question, passages, language, simple, history=history)
+            return self.fallback.generate(question, passages, language, simple)
 
         text = (response.text or "").strip()
         if not text or NOT_FOUND_SENTINEL in text:

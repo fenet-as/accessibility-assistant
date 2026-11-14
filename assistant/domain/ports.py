@@ -1,8 +1,8 @@
 """Interfaces the application layer depends on; infrastructure provides the implementations."""
 
-from typing import Any, List, Optional, Protocol, runtime_checkable
+from typing import List, Optional, Protocol, runtime_checkable
 
-from assistant.domain.models import ChatResponse, Passage
+from assistant.domain.models import ChatResponse, ConversationTurn, Passage
 
 
 @runtime_checkable
@@ -15,7 +15,7 @@ class AIProvider(Protocol):
         passages: List[Passage],
         language: str,
         simple: bool = False,
-        history: Optional[List[Any]] = None,
+        history: Optional[List[ConversationTurn]] = None,
     ) -> ChatResponse:
         """Answer strictly from the retrieved passages, or return a not-found response."""
         ...

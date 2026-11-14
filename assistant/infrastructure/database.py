@@ -68,15 +68,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
-
-CREATE TABLE IF NOT EXISTS conversation_turns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_conv_turns_session ON conversation_turns(session_id, id DESC);
 """
 
 
@@ -121,25 +112,6 @@ class Database:
             "INSERT INTO query_logs (session_id, message, language, status, topic, mode) VALUES (?, ?, ?, ?, ?, ?)",
             (anonymize(session_id), message, language, status, topic, mode),
         )
-
-    def save_turn(self, session_id: str, role: str, content: str) -> None:
-        """Store a dialogue turn for conversational session context."""
-        self._insert(
-            "INSERT INTO conversation_turns (session_id, role, content) VALUES (?, ?, ?)",
-            (anonymize(session_id), role, content),
-        )
-
-    def get_recent_turns(self, session_id: str, limit: int = 4) -> List[Any]:
-        """Fetch recent dialogue turns for a session in chronological order."""
-        from assistant.domain.models import ConversationTurn
-
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT role, content FROM conversation_turns WHERE session_id = ? "
-                "ORDER BY id DESC LIMIT ?",
-                (anonymize(session_id), limit),
-            ).fetchall()
-            return [ConversationTurn(role=row["role"], content=row["content"]) for row in reversed(rows)]
 
     def log_escalation(self, ticket_id: str, session_id: str, room_url: str) -> None:
         self._insert(
