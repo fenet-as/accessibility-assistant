@@ -96,3 +96,96 @@ def test_lti_launch_endpoint(client):
     data = client.post("/api/lti/launch", json={"user_id": "anon-123"}).json()
     assert data["status"] == "authenticated"
     assert data["standard"] == "LTI-1p3"
+
+
+def test_course_chunks_persistence_in_database(tmp_path):
+    from assistant.infrastructure.chunk_store import ChunkStore
+
+    db = Database(tmp_path / "test_courses.db")
+    assert db.count_course_chunks() == 0
+
+    sample_chunks = [
+        {
+            "id": "c1--l1--sec1",
+            "scope": "course:c1",
+            "course": "Course 1",
+            "lesson_id": "l1",
+            "title": "Title 1",
+            "section": "Sec 1",
+            "anchor": "#sec1",
+            "url": "/c1/l1#sec1",
+            "language": "en",
+            "text": "This is sample course text 1 for testing SQLite persistence.",
+            "translations": {"am": "ይህ የሙከራ ጽሑፍ 1 ነው"},
+            "keywords_en": "sample course",
+            "keywords_am": "ሙከራ",
+            "synonyms": ["example"],
+            "content_hash": "hash1",
+            "revision": 1,
+        },
+        {
+            "id": "c1--l2--sec2",
+            "scope": "course:c1",
+            "course": "Course 1",
+            "lesson_id": "l2",
+            "title": "Title 2",
+            "section": "Sec 2",
+            "anchor": "#sec2",
+            "url": "/c1/l2#sec2",
+            "language": "en",
+            "text": "This is sample course text 2 for testing SQLite persistence.",
+            "translations": {},
+            "keywords_en": "sample lesson 2",
+            "keywords_am": "",
+            "synonyms": [],
+            "content_hash": "hash2",
+            "revision": 1,
+        },
+        {
+            "id": "c2--l1--sec1",
+            "scope": "course:c2",
+            "course": "Course 2",
+            "lesson_id": "l1",
+            "title": "Title 3",
+            "section": "Sec 3",
+            "anchor": "#sec3",
+            "url": "/c2/l1#sec3",
+            "language": "en",
+            "text": "This is sample course text 3 for testing isolation.",
+            "translations": {},
+            "keywords_en": "isolation",
+            "keywords_am": "",
+            "synonyms": [],
+            "content_hash": "hash3",
+            "revision": 1,
+        },
+    ]
+
+    db.save_course_chunks(sample_chunks)
+    assert db.count_course_chunks() == 3
+    assert db.count_course_chunks(scope="course:c1") == 2
+    assert db.count_course_chunks(scope="course:c2") == 1
+
+    c1_chunks = db.list_course_chunks(scope="course:c1")
+    assert len(c1_chunks) == 2
+    assert c1_chunks[0]["id"] == "c1--l1--sec1"
+    assert c1_chunks[0]["translations"]["am"] == "ይህ የሙከራ ጽሑፍ 1 ነው"
+
+    l2_chunks = db.list_course_chunks(scope="course:c1", lesson_id="l2")
+    assert len(l2_chunks) == 1
+    assert l2_chunks[0]["id"] == "c1--l2--sec2"
+
+    # Verify ChunkStore integration with DB
+    store = ChunkStore(tmp_path / "chunks.json", db=db)
+    loaded = store.load()
+    assert len(loaded) == 3
+    assert loaded[0]["id"] == "c1--l1--sec1"
+
+    # Test deletion
+    deleted = db.delete_course_chunks(scope="course:c1", lesson_id="l2")
+    assert deleted == 1
+    assert db.count_course_chunks(scope="course:c1") == 1
+
+    db.delete_course_chunks(scope="%")
+    assert db.count_course_chunks() == 0
+

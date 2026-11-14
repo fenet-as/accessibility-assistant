@@ -68,6 +68,29 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS course_chunks (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    course TEXT NOT NULL,
+    lesson_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    section TEXT NOT NULL,
+    anchor TEXT DEFAULT '',
+    url TEXT NOT NULL,
+    language TEXT DEFAULT 'en',
+    text TEXT NOT NULL,
+    translations_json TEXT NOT NULL DEFAULT '{}',
+    keywords_en TEXT DEFAULT '',
+    keywords_am TEXT DEFAULT '',
+    synonyms_json TEXT NOT NULL DEFAULT '[]',
+    content_hash TEXT NOT NULL DEFAULT '',
+    revision INTEGER DEFAULT 1,
+    raw_json TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_course_chunks_scope ON course_chunks(scope);
+CREATE INDEX IF NOT EXISTS idx_course_chunks_lesson ON course_chunks(scope, lesson_id);
 """
 
 
@@ -180,6 +203,74 @@ class Database:
         """Return total count of jobs stored in the database."""
         with self._connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+
+    def save_course_chunks(self, chunks: List[Dict[str, Any]]) -> None:
+        """Store or update course curriculum chunks in SQLite."""
+        with self._connect() as conn:
+            for c in chunks:
+                conn.execute(
+                    "INSERT OR REPLACE INTO course_chunks ("
+                    "id, scope, course, lesson_id, title, section, anchor, url, language, text, "
+                    "translations_json, keywords_en, keywords_am, synonyms_json, content_hash, revision, raw_json, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                    (
+                        c["id"],
+                        c["scope"],
+                        c["course"],
+                        c.get("lesson_id", ""),
+                        c["title"],
+                        c["section"],
+                        c.get("anchor", ""),
+                        c["url"],
+                        c.get("language", "en"),
+                        c["text"],
+                        json.dumps(c.get("translations", {})),
+                        c.get("keywords_en", ""),
+                        c.get("keywords_am", ""),
+                        json.dumps(c.get("synonyms", [])),
+                        c.get("content_hash", ""),
+                        c.get("revision", 1),
+                        json.dumps(c),
+                    ),
+                )
+
+    def list_course_chunks(
+        self, scope: Optional[str] = None, lesson_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieve course chunks directly from SQLite."""
+        with self._connect() as conn:
+            sql = "SELECT raw_json FROM course_chunks"
+            params: List[Any] = []
+            clauses = []
+            if scope:
+                clauses.append("scope = ?")
+                params.append(scope)
+            if lesson_id:
+                clauses.append("lesson_id = ?")
+                params.append(lesson_id)
+            if clauses:
+                sql += " WHERE " + " AND ".join(clauses)
+            sql += " ORDER BY rowid ASC"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [json.loads(row["raw_json"]) for row in rows]
+
+    def count_course_chunks(self, scope: Optional[str] = None) -> int:
+        """Count total course chunks stored in SQLite."""
+        with self._connect() as conn:
+            if scope:
+                return conn.execute("SELECT COUNT(*) FROM course_chunks WHERE scope = ?", (scope,)).fetchone()[0]
+            return conn.execute("SELECT COUNT(*) FROM course_chunks").fetchone()[0]
+
+    def delete_course_chunks(self, scope: str, lesson_id: Optional[str] = None) -> int:
+        """Delete course chunks by course scope and optional lesson ID."""
+        with self._connect() as conn:
+            if lesson_id:
+                cur = conn.execute("DELETE FROM course_chunks WHERE scope = ? AND lesson_id = ?", (scope, lesson_id))
+            elif scope == "%":
+                cur = conn.execute("DELETE FROM course_chunks")
+            else:
+                cur = conn.execute("DELETE FROM course_chunks WHERE scope = ?", (scope,))
+            return cur.rowcount
 
     def analytics_summary(self, top_n: int = 5) -> Dict[str, Any]:
         with self._connect() as conn:
