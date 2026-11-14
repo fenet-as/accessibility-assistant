@@ -3,7 +3,7 @@
  * Caches widget assets and offline course packs. Chat/escalate stay network-only.
  */
 /* eslint-disable no-restricted-globals */
-const CACHE_VERSION = 'alx-assistant-sw-v1';
+const CACHE_VERSION = 'alx-assistant-sw-v2';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const PACK_CACHE = `${CACHE_VERSION}-packs`;
 
@@ -91,7 +91,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (isAssetRequest(url) || PRECACHE_URLS.some((u) => url.pathname.endsWith(u.replace('./', '')))) {
-    event.respondWith(cacheFirst(request, ASSET_CACHE));
+    event.respondWith(staleWhileRevalidate(request, ASSET_CACHE));
   }
 });
 

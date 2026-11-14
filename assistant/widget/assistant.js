@@ -536,7 +536,7 @@
       } catch (e) {}
       this.messagesContainer.innerHTML = '';
       if (this.welcomeBubble) {
-        this.welcomeBubble.textContent = this.t('welcome');
+        this._renderWelcomeBubble(this.uiLangCode(), this.langMeta[this.uiLangCode()] || this.langMeta.en);
         this.messagesContainer.appendChild(this.welcomeBubble);
       }
     }
@@ -801,9 +801,7 @@
       this.sendBtn.textContent = this.t('send');
       this.sendBtn.setAttribute('aria-label', this.t('send_aria'));
       this.voiceBtn.setAttribute('aria-label', this.t('voice_aria'));
-      this.welcomeBubble.textContent = this.t('welcome');
-      this.welcomeBubble.setAttribute('lang', code);
-      this.welcomeBubble.setAttribute('dir', meta.dir);
+      this._renderWelcomeBubble(code, meta);
       if (this.packBtn) this.refreshPackButton();
       this.updateConnectionStatus();
       this.refreshVoiceCapabilityHints();
@@ -1107,6 +1105,87 @@
       }
     }
 
+    _renderWelcomeBubble(code, meta) {
+      if (!this.welcomeBubble) return;
+      this.welcomeBubble.innerHTML = '';
+      this.welcomeBubble.setAttribute('lang', code);
+      this.welcomeBubble.setAttribute('dir', meta.dir);
+      const txt = document.createElement('div');
+      txt.textContent = this.t('welcome');
+      this.welcomeBubble.appendChild(txt);
+      if (this.ttsSupported) {
+        this.welcomeBubble.appendChild(this._createSpeakButton(this.t('welcome'), code));
+      }
+    }
+
+    _createSpeakButton(text, resolved) {
+      const speakBtn = document.createElement('button');
+      speakBtn.type = 'button';
+      speakBtn.className = 'alx-btn-speak';
+      speakBtn.innerHTML = `
+        <svg aria-hidden="true" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+        <span class="alx-speak-label">${this.t('listen')}</span>
+      `;
+      const labelSpan = speakBtn.querySelector('.alx-speak-label');
+      const setSpeaking = (speaking) => {
+        speakBtn.classList.toggle('speaking', speaking);
+        labelSpan.textContent = speaking ? this.t('stop') : this.t('listen');
+        speakBtn.setAttribute('aria-label', speaking ? this.t('stop_aria') : this.t('listen_aria'));
+      };
+      setSpeaking(false);
+      const bcp = (this.langMeta[resolved] || this.langMeta.en).tts;
+      if (!this.hasTtsVoice(bcp)) {
+        speakBtn.title = this.t('speak_unsupported');
+      }
+      speakBtn.addEventListener('click', async () => {
+        if (speakBtn.classList.contains('speaking')) {
+          this.stopAllSpeech();
+          return;
+        }
+
+        this.stopAllSpeech();
+        const langCode = (resolved || 'en').split('-')[0].toLowerCase();
+        setSpeaking(true);
+        this.activeSpeakButtonReset = () => setSpeaking(false);
+
+        let serverPlayed = false;
+        try {
+          const speakUrl = `${this.apiUrl}/voice/speak?text=${encodeURIComponent(text.slice(0, 1000))}&language=${encodeURIComponent(langCode)}`;
+          const res = await fetch(speakUrl);
+          if (res.ok) {
+            const blob = await res.blob();
+            if (blob && blob.size > 0 && typeof Audio !== 'undefined') {
+              const audioUrl = URL.createObjectURL(blob);
+              const audio = new Audio(audioUrl);
+              this.currentAudio = audio;
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+                setSpeaking(false);
+                if (this.currentAudio === audio) this.currentAudio = null;
+                this.activeSpeakButtonReset = null;
+              };
+              audio.onerror = () => {
+                URL.revokeObjectURL(audioUrl);
+                this.currentAudio = null;
+                this.fallbackBrowserSpeech(text, bcp, setSpeaking);
+              };
+              await audio.play();
+              serverPlayed = true;
+            }
+          }
+        } catch (e) {
+          // Server voice unavailable or network error
+        }
+
+        if (!serverPlayed) {
+          this.fallbackBrowserSpeech(text, bcp, setSpeaking);
+        }
+      });
+      return speakBtn;
+    }
+
     appendMessage(text, sender, lang = 'auto', citations = []) {
       const bubble = document.createElement('div');
       bubble.className = `alx-bubble alx-bubble-${sender}`;
@@ -1173,71 +1252,7 @@
       }
 
       if (sender === 'assistant' && this.ttsSupported) {
-        const speakBtn = document.createElement('button');
-        speakBtn.type = 'button';
-        speakBtn.className = 'alx-btn-speak';
-        speakBtn.innerHTML = `
-          <svg aria-hidden="true" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-          </svg>
-          <span class="alx-speak-label">${this.t('listen')}</span>
-        `;
-        const labelSpan = speakBtn.querySelector('.alx-speak-label');
-        const setSpeaking = (speaking) => {
-          speakBtn.classList.toggle('speaking', speaking);
-          labelSpan.textContent = speaking ? this.t('stop') : this.t('listen');
-          speakBtn.setAttribute('aria-label', speaking ? this.t('stop_aria') : this.t('listen_aria'));
-        };
-        setSpeaking(false);
-        const bcp = (this.langMeta[resolved] || this.langMeta.en).tts;
-        if (!this.hasTtsVoice(bcp)) {
-          speakBtn.title = this.t('speak_unsupported');
-        }
-        speakBtn.addEventListener('click', async () => {
-          if (speakBtn.classList.contains('speaking')) {
-            this.stopAllSpeech();
-            return;
-          }
-
-          this.stopAllSpeech();
-          const langCode = (resolved || 'en').split('-')[0].toLowerCase();
-          setSpeaking(true);
-          this.activeSpeakButtonReset = () => setSpeaking(false);
-
-          let serverPlayed = false;
-          try {
-            const speakUrl = `${this.apiUrl}/voice/speak?text=${encodeURIComponent(text.slice(0, 1000))}&language=${encodeURIComponent(langCode)}`;
-            const res = await fetch(speakUrl);
-            if (res.ok) {
-              const blob = await res.blob();
-              if (blob && blob.size > 0 && typeof Audio !== 'undefined') {
-                const audioUrl = URL.createObjectURL(blob);
-                const audio = new Audio(audioUrl);
-                this.currentAudio = audio;
-                audio.onended = () => {
-                  URL.revokeObjectURL(audioUrl);
-                  setSpeaking(false);
-                  if (this.currentAudio === audio) this.currentAudio = null;
-                  this.activeSpeakButtonReset = null;
-                };
-                audio.onerror = () => {
-                  URL.revokeObjectURL(audioUrl);
-                  this.currentAudio = null;
-                  this.fallbackBrowserSpeech(text, bcp, setSpeaking);
-                };
-                await audio.play();
-                serverPlayed = true;
-              }
-            }
-          } catch (e) {
-            // Server voice unavailable or network error
-          }
-
-          if (!serverPlayed) {
-            this.fallbackBrowserSpeech(text, bcp, setSpeaking);
-          }
-        });
-        bubble.appendChild(speakBtn);
+        bubble.appendChild(this._createSpeakButton(text, resolved));
       }
 
       this.messagesContainer.appendChild(bubble);
