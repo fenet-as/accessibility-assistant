@@ -39,9 +39,10 @@ def test_widget_escape_closes_and_restores_focus(widget_source):
 
 def test_widget_label_in_name(widget_source):
     """WCAG 2.5.3: each accessible name contains the visible label."""
-    assert 'aria-label="Ask Tutor / ረዳት - AI Learning Assistant"' in widget_source
-    assert 'aria-label="English / አማርኛ - Switch language"' in widget_source
+    assert 'aria-label="Ask Tutor - AI Learning Assistant"' in widget_source
+    assert 'aria-label="Select response language"' in widget_source
     assert 'aria-label="Live Human Help - Request human tutor help"' in widget_source
+    assert 'id="alx-lang-select"' in widget_source
 
 
 def test_widget_escalates_through_the_api(widget_source):

@@ -1,0 +1,65 @@
+{
+  "_comment": "Retrieval evaluation set. expected_section = the section that must rank first (null when no section should be used). accept = decisions counted as correct: answer | clarify | not_found.",
+  "courses": {
+    "course:va-1": {"source": "assistant/data/chunks.json"},
+    "course:py-101": {
+      "title": "PY-101: Python Basics",
+      "lessons": [
+        {"file": "fixtures/py101_variables.md", "lesson_id": "variables", "lesson_title": "Variables and Data Types", "url": "/pages/py101/variables.html"},
+        {"file": "fixtures/py101_loops.md", "lesson_id": "loops", "lesson_title": "Loops", "url": "/pages/py101/loops.html"}
+      ]
+    }
+  },
+  "items": [
+    {"id": "en-01", "category": "in_scope", "scope": "course:va-1", "query": "What is a virtual assistant?", "expected_section": "Introduction & Overview", "accept": ["answer"]},
+    {"id": "en-02", "category": "in_scope", "scope": "course:va-1", "query": "What is shaping the future of VA work?", "expected_section": "What is Shaping the Future of VA Work?", "accept": ["answer"]},
+    {"id": "en-03", "category": "in_scope", "scope": "course:va-1", "query": "Is the future of VA promising?", "expected_section": "So, is the Future of VA Promising?", "accept": ["answer"]},
+    {"id": "en-04", "category": "in_scope", "scope": "course:va-1", "query": "What will clients value more and more?", "expected_section": "What Clients Are Likely to Value More and More", "accept": ["answer"]},
+    {"id": "en-05", "category": "in_scope", "scope": "course:va-1", "query": "What does this mean for aspiring virtual assistants?", "expected_section": "What This Means for Aspiring Virtual Assistants", "accept": ["answer"]},
+    {"id": "en-06", "category": "in_scope", "scope": "course:va-1", "query": "What comes in the next lesson?", "expected_section": "Up Next", "accept": ["answer"]},
+    {"id": "en-07", "category": "in_scope", "scope": "course:va-1", "query": "Which articles and reports can I read about the VA market?", "expected_section": "Optional Reads and Market Signals", "accept": ["answer"]},
+
+    {"id": "concept-01", "category": "concept", "scope": "course:va-1", "query": "How can AI help virtual assistants?", "expected_section": "Artificial Intelligence and the Future of VA Work", "accept": ["answer"]},
+    {"id": "concept-02", "category": "concept", "scope": "course:va-1", "query": "Which AI tools support VAs with drafting and summarizing?", "expected_section": "Artificial Intelligence and the Future of VA Work", "accept": ["answer"]},
+    {"id": "concept-03", "category": "concept", "scope": "course:va-1", "query": "Why is AI fluency important to clients?", "expected_section": "What Clients Are Likely to Value More and More", "accept": ["answer"]},
+    {"id": "concept-04", "category": "concept", "scope": "course:va-1", "query": "Why should I develop specialized expertise?", "expected_section": "What Clients Are Likely to Value More and More", "accept": ["answer"]},
+    {"id": "concept-05", "category": "concept", "scope": "course:va-1", "query": "Why are remote-first businesses important for VAs?", "expected_section": "What is Shaping the Future of VA Work?", "accept": ["answer"]},
+    {"id": "concept-06", "category": "concept", "scope": "course:va-1", "query": "What does emotional intelligence and excellent human service mean here?", "expected_section": "What Clients Are Likely to Value More and More", "accept": ["answer"]},
+    {"id": "concept-07", "category": "concept", "scope": "course:va-1", "query": "How fast is the global virtual assistant market growing?", "expected_section": "Optional Reads and Market Signals", "accept": ["answer"]},
+    {"id": "concept-08", "category": "concept", "scope": "course:va-1", "query": "What is the difference between an AI assistant and a human virtual assistant?", "expected_section": "Introduction & Overview", "accept": ["answer"]},
+    {"id": "concept-09", "category": "concept", "scope": "course:va-1", "query": "Do I need to master everything immediately?", "expected_section": "What This Means for Aspiring Virtual Assistants", "accept": ["answer"]},
+    {"id": "concept-10", "category": "concept", "scope": "course:va-1", "query": "Could a VA become a workflow partner or operations coordinator?", "expected_section": "So, is the Future of VA Promising?", "accept": ["answer"]},
+
+    {"id": "syn-01", "category": "synonym", "scope": "course:va-1", "query": "Will machine learning and chatgpt replace my job?", "expected_section": "Artificial Intelligence and the Future of VA Work", "accept": ["answer", "clarify"]},
+    {"id": "syn-02", "category": "synonym", "scope": "course:va-1", "query": "What are the career prospects and job outlook?", "expected_section": "So, is the Future of VA Promising?", "accept": ["answer", "clarify"]},
+    {"id": "syn-03", "category": "synonym", "scope": "course:va-1", "query": "What do customers want from assistants?", "expected_section": "What Clients Are Likely to Value More and More", "accept": ["answer", "clarify"]},
+    {"id": "syn-04", "category": "synonym", "scope": "course:va-1", "query": "Tips for beginners getting started", "expected_section": "What This Means for Aspiring Virtual Assistants", "accept": ["answer", "clarify"]},
+
+    {"id": "am-01", "category": "amharic", "scope": "course:va-1", "query": "ቨርቹዋል ረዳት ምንድን ነው?", "expected_section": "Introduction & Overview", "accept": ["answer"]},
+    {"id": "am-02", "category": "amharic", "scope": "course:va-1", "query": "ሰው ሰራሽ አስተዋይነት ቨርቹዋል ረዳቶችን እንዴት ይረዳል?", "expected_section": "Artificial Intelligence and the Future of VA Work", "accept": ["answer"]},
+    {"id": "am-03", "category": "amharic", "scope": "course:va-1", "query": "ደንበኞች የሚፈልጓቸው ክህሎቶች ምንድን ናቸው?", "expected_section": "What Clients Are Likely to Value More and More", "accept": ["answer"]},
+    {"id": "am-04", "category": "amharic", "scope": "course:va-1", "query": "የቨርቹዋል ረዳት ሥራ ተስፋ አለው?", "expected_section": "So, is the Future of VA Promising?", "accept": ["answer"]},
+    {"id": "am-05", "category": "amharic", "scope": "course:va-1", "query": "ለጀማሪዎች ምን ምክር አለ?", "expected_section": "What This Means for Aspiring Virtual Assistants", "accept": ["answer", "clarify"]},
+    {"id": "am-06", "category": "amharic", "scope": "course:va-1", "query": "የቨርቹዋል ረዳት ስራ ተስፋ አለው?", "expected_section": "So, is the Future of VA Promising?", "accept": ["answer"]},
+    {"id": "am-07", "category": "amharic", "scope": "course:va-1", "query": "የርቀት ሥራ እና ተለዋዋጭነት ለምን አስፈላጊ ሆኑ?", "expected_section": "What is Shaping the Future of VA Work?", "accept": ["answer", "clarify"]},
+
+    {"id": "oos-01", "category": "out_of_scope", "scope": "course:va-1", "query": "What is the capital of France?", "expected_section": null, "accept": ["not_found"]},
+    {"id": "oos-02", "category": "out_of_scope", "scope": "course:va-1", "query": "How do I bake chocolate cake?", "expected_section": null, "accept": ["not_found"]},
+    {"id": "oos-03", "category": "out_of_scope", "scope": "course:va-1", "query": "Who won the football world cup in 2022?", "expected_section": null, "accept": ["not_found"]},
+    {"id": "oos-04", "category": "out_of_scope", "scope": "course:va-1", "query": "What is the best tool for designing a house?", "expected_section": null, "accept": ["not_found", "clarify"]},
+    {"id": "oos-05", "category": "out_of_scope", "scope": "course:va-1", "query": "How do I fix my car engine at work?", "expected_section": null, "accept": ["not_found", "clarify"]},
+    {"id": "oos-06", "category": "out_of_scope", "scope": "course:va-1", "query": "የአዲስ አበባ የአየር ሁኔታ ምን ይመስላል?", "expected_section": null, "accept": ["not_found"]},
+
+    {"id": "iso-01", "category": "isolation", "scope": "course:va-1", "query": "How does a while loop work in Python?", "expected_section": null, "accept": ["not_found"]},
+    {"id": "iso-02", "category": "isolation", "scope": "course:va-1", "query": "How do I convert a string with int()?", "expected_section": null, "accept": ["not_found"]},
+    {"id": "iso-03", "category": "isolation", "scope": "course:py-101", "query": "How can AI help virtual assistants?", "expected_section": null, "accept": ["not_found"]},
+    {"id": "iso-04", "category": "isolation", "scope": "course:py-101", "query": "How does a while loop work?", "expected_section": "While Loops", "accept": ["answer"]},
+    {"id": "iso-05", "category": "isolation", "scope": "course:py-101", "query": "What are the common data types?", "expected_section": "Data Types", "accept": ["answer"]},
+    {"id": "iso-06", "category": "isolation", "scope": "course:py-101", "lesson": "loops", "query": "What are the common data types?", "expected_section": null, "accept": ["not_found", "clarify"]},
+    {"id": "iso-07", "category": "isolation", "scope": "course:py-101", "lesson": "loops", "query": "What does the break statement do?", "expected_section": "Break and Continue", "accept": ["answer"]},
+
+    {"id": "amb-01", "category": "ambiguous", "scope": "course:va-1", "query": "Tell me more", "expected_section": null, "accept": ["clarify", "not_found"]},
+    {"id": "amb-02", "category": "ambiguous", "scope": "course:va-1", "query": "What about it?", "expected_section": null, "accept": ["clarify", "not_found"]},
+    {"id": "amb-03", "category": "ambiguous", "scope": "course:va-1", "query": "Can you explain this?", "expected_section": null, "accept": ["clarify", "not_found"]}
+  ]
+}
