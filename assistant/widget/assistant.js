@@ -54,6 +54,7 @@
       placeholder: 'Ask a question about this lesson...', listening: 'Listening... Speak your question now',
       send: 'Send', send_aria: 'Send message', voice_aria: 'Voice input - Speak your question',
       voice_stop_aria: 'Stop listening - Microphone active', voice_unsupported: 'Voice input is not available in this browser',
+      transcribing: 'Transcribing your speech…', stt_failed: 'Could not transcribe audio. Type your question or try again.',
       listen: 'Listen', listen_aria: 'Listen - Read response aloud', stop: 'Stop', stop_aria: 'Stop - Stop reading aloud',
       speak_unsupported: 'Read-aloud is not available for this language on this device',
       loading: 'Searching course material...',
@@ -83,6 +84,7 @@
       close_aria: 'ረዳቱን ዝጋ', placeholder: 'ስለዚህ ትምህርት ጥያቄዎን ይጠይቁ...', listening: 'እያዳመጠ ነው... አሁን ይናገሩ',
       send: 'ላክ', send_aria: 'መልእክት ላክ', voice_aria: 'የድምጽ ግቤት - ጥያቄዎን ይናገሩ',
       voice_stop_aria: 'ማዳመጥ አቁም - ማይክሮፎን ንቁ ነው', voice_unsupported: 'የድምጽ ግቤት በዚህ አሳሽ አይገኝም',
+      transcribing: 'ድምጽዎ እየተተረጎመ ነው…', stt_failed: 'ድምጽ ሊተረጎም አልተቻለም። ጥያቄዎን ይጻፉ ወይም እንደገና ይሞክሩ።',
       listen: 'አዳምጥ', listen_aria: 'አዳምጥ - መልሱን በድምጽ ያንብቡ', stop: 'አቁም', stop_aria: 'አቁም - ማንበብ አቁም',
       speak_unsupported: 'በዚህ መሣሪያ ለዚህ ቋንቋ ማንበብ አይገኝም', loading: 'መልስ እየተፈለገ ነው...',
       offline_error: 'ይቅርታ፣ ከአገልጋዩ ጋር መገናኘት አልተቻለም። እባክዎ የቀጥታ ረዳትን ያነጋግሩ ወይም እንደገና ይሞክሩ።',
@@ -454,6 +456,11 @@
       this.scope = this.detectScope();
       this.updateScopeBadge();
       this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
+      this.sessionLang = null;
+      this.serverStt = false;
+      this.mediaRecorder = null;
+      this.audioChunks = [];
+      this.micStream = null;
       this.ttsVoices = [];
       this.speechSupported = false;
       this.ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -544,14 +551,32 @@
       }
     }
 
+    effectiveLang() {
+      if (this.currentLang && this.currentLang !== 'auto') return this.currentLang;
+      if (this.sessionLang) return this.sessionLang;
+      return 'am';
+    }
+
+    languageForApi() {
+      if (this.currentLang && this.currentLang !== 'auto') return this.currentLang;
+      if (this.sessionLang) return this.sessionLang;
+      return 'auto';
+    }
+
     t(key) {
-      const uiLang = this.currentLang === 'auto' ? 'en' : this.currentLang;
+      const uiLang = this.effectiveLang();
       const pack = this.uiPack[uiLang] || this.uiPack.en;
       return pack[key] || this.uiPack.en[key] || key;
     }
 
     uiLangCode() {
-      return this.currentLang === 'auto' ? 'en' : this.currentLang;
+      return this.effectiveLang();
+    }
+
+    rememberLanguage(code) {
+      if (code && code !== 'auto' && this.langMeta[code]) {
+        this.sessionLang = code;
+      }
     }
 
     detectScope() {
@@ -600,6 +625,7 @@
       this.initVoiceInput();
       this.initSpeechSynthesis();
       this.loadRemoteLanguagePack();
+      this.probeServerStt();
       this.bootOffline();
       this.dialog.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') this.close();
@@ -823,8 +849,18 @@
     }
 
     speechTag() {
-      const code = this.uiLangCode();
-      return (this.langMeta[code] || this.langMeta.en).speech;
+      const code = this.effectiveLang();
+      return (this.langMeta[code] || this.langMeta.am || this.langMeta.en).speech;
+    }
+
+    async probeServerStt() {
+      try {
+        const res = await fetch(`${this.apiUrl}/health`);
+        if (!res.ok) return;
+        const data = await res.json();
+        this.serverStt = !!(data.speech && data.speech.server_stt);
+        this.refreshVoiceCapabilityHints();
+      } catch (e) { /* offline */ }
     }
 
     ttsTag() {
@@ -866,54 +902,128 @@
 
     initVoiceInput() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        this.speechSupported = false;
+      this.browserSttSupported = !!SpeechRecognition;
+      this.speechSupported = this.serverStt || this.browserSttSupported;
+      if (!this.speechSupported) {
         if (this.voiceBtn) this.voiceBtn.hidden = true;
         this.refreshVoiceCapabilityHints();
         return;
       }
-      this.speechSupported = true;
-      try {
-        this.recognition = new SpeechRecognition();
-        this.recognition.continuous = false;
-        this.recognition.interimResults = true;
-        this.isListening = false;
 
-        this.recognition.onstart = () => {
-          this.isListening = true;
-          this.voiceBtn.classList.add('listening');
-          this.voiceBtn.setAttribute('aria-pressed', 'true');
-          this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
-          this.input.placeholder = this.t('listening');
-        };
-        this.recognition.onresult = (event) => {
-          this.input.value = Array.from(event.results).map((res) => res[0].transcript).join('');
-        };
-        this.recognition.onerror = () => this.stopListening();
-        this.recognition.onend = () => this.stopListening();
-
-        this.voiceBtn.addEventListener('click', () => {
-          if (this.isListening) {
-            this.recognition.stop();
-            return;
-          }
-          this.recognition.lang = this.speechTag();
-          try {
-            this.recognition.start();
-          } catch (err) {
-            console.warn('Could not start recognition:', err);
-            this.refreshVoiceCapabilityHints();
-          }
-        });
-      } catch (err) {
-        this.speechSupported = false;
-        if (this.voiceBtn) this.voiceBtn.hidden = true;
-        this.refreshVoiceCapabilityHints();
+      this.isListening = false;
+      if (this.browserSttSupported) {
+        try {
+          this.recognition = new SpeechRecognition();
+          this.recognition.continuous = false;
+          this.recognition.interimResults = true;
+          this.recognition.onresult = (event) => {
+            let finalText = '';
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {
+              const piece = event.results[i][0].transcript;
+              if (event.results[i].isFinal) finalText += piece;
+              else interim += piece;
+            }
+            this.input.value = (finalText || interim).trim();
+          };
+          this.recognition.onerror = () => this.stopListening();
+          this.recognition.onend = () => this.stopListening();
+        } catch (err) {
+          this.browserSttSupported = false;
+          this.speechSupported = this.serverStt;
+        }
       }
+
+      this.voiceBtn.addEventListener('click', () => {
+        if (this.isListening) {
+          this.stopListening();
+          return;
+        }
+        if (this.serverStt) this.startServerRecording();
+        else this.startBrowserRecognition();
+      });
+      this.refreshVoiceCapabilityHints();
+    }
+
+    startBrowserRecognition() {
+      if (!this.recognition) return;
+      this.recognition.lang = this.speechTag();
+      this.markListening();
+      try {
+        this.recognition.start();
+      } catch (err) {
+        console.warn('Could not start recognition:', err);
+        this.stopListening();
+      }
+    }
+
+    async startServerRecording() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.startBrowserRecognition();
+        return;
+      }
+      try {
+        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus' : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+        this.mediaRecorder = mime ? new MediaRecorder(this.micStream, { mimeType: mime }) : new MediaRecorder(this.micStream);
+        this.audioChunks = [];
+        this.mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) this.audioChunks.push(e.data); };
+        this.mediaRecorder.onstop = () => this.uploadForTranscription();
+        this.mediaRecorder.start();
+        this.markListening();
+      } catch (err) {
+        this.startBrowserRecognition();
+      }
+    }
+
+    markListening() {
+      this.isListening = true;
+      if (this.voiceBtn) {
+        this.voiceBtn.classList.add('listening');
+        this.voiceBtn.setAttribute('aria-pressed', 'true');
+        this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
+      }
+      this.input.placeholder = this.t('listening');
+    }
+
+    async uploadForTranscription() {
+      if (this.micStream) {
+        this.micStream.getTracks().forEach((t) => t.stop());
+        this.micStream = null;
+      }
+      this.input.placeholder = this.t('transcribing');
+      const blob = new Blob(this.audioChunks, { type: this.mediaRecorder ? this.mediaRecorder.mimeType : 'audio/webm' });
+      this.audioChunks = [];
+      this.mediaRecorder = null;
+      try {
+        const form = new FormData();
+        form.append('audio', blob, 'speech.webm');
+        form.append('language', this.languageForApi());
+        const res = await fetch(`${this.apiUrl}/transcribe`, { method: 'POST', body: form });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (data.text) this.input.value = data.text.trim();
+        this.rememberLanguage(data.language_used || this.effectiveLang());
+      } catch (err) {
+        this.input.value = '';
+        this.voiceNote.hidden = false;
+        this.voiceNote.textContent = this.t('stt_failed');
+      }
+      this.stopListening();
     }
 
     stopListening() {
       this.isListening = false;
+      if (this.recognition) {
+        try { this.recognition.stop(); } catch (e) { /* already stopped */ }
+      }
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        try { this.mediaRecorder.stop(); } catch (e) { /* noop */ }
+      } else if (this.micStream) {
+        this.micStream.getTracks().forEach((t) => t.stop());
+        this.micStream = null;
+      }
       if (this.voiceBtn) {
         this.voiceBtn.classList.remove('listening');
         this.voiceBtn.setAttribute('aria-pressed', 'false');
@@ -1040,6 +1150,12 @@
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
 
+    mapAnswerSource(data) {
+      const src = (data && (data.answer_source || data.source)) || 'cloud';
+      if (src === 'faq' || src === 'cache' || src === 'local') return 'local';
+      return 'cloud';
+    }
+
     async handleSubmit(e) {
       e.preventDefault();
       const query = this.input.value.trim();
@@ -1057,7 +1173,7 @@
       this.messagesContainer.appendChild(statusBubble);
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-      const recentHistory = (this.chatHistory || []).slice(-4).map(t => ({ role: t.role, content: t.content }));
+      const recentHistory = (this.chatHistory || []).slice(-6).map((t) => ({ role: t.role, content: t.content }));
       this.chatHistory = this.chatHistory || [];
       this.chatHistory.push({ role: 'user', content: query, lang: this.uiLangCode() });
       this._saveStoredHistory();
@@ -1065,7 +1181,7 @@
       const payload = {
         session: this.sessionId,
         message: query,
-        language: this.currentLang,
+        language: this.languageForApi(),
         mode: this.simpleModeCheck.checked ? 'simple' : 'normal',
         scope: this.scope,
         history: recentHistory,
@@ -1081,7 +1197,8 @@
           statusBubble.remove();
           if (!res.ok) throw new Error('Server returned ' + res.status);
           const data = await res.json();
-          data.source = data.source || 'cloud';
+          this.rememberLanguage(data.language);
+          data.source = this.mapAnswerSource(data);
           this.renderAssistantResponse(data);
           if (this.offlineRuntime) {
             await this.offlineRuntime.appendHistory({

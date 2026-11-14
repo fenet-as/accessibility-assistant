@@ -16,6 +16,8 @@ class AIProvider(Protocol):
         language: str,
         simple: bool = False,
         history: Optional[List[ConversationTurn]] = None,
+        *,
+        confidence: float = 0.0,
     ) -> ChatResponse:
         """Answer strictly from the retrieved passages, or return a not-found response."""
         ...

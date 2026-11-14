@@ -104,7 +104,10 @@ def welcome_message(language: str) -> str:
 
 GREETING_PATTERNS: Dict[str, List[str]] = {
     "en": ["hi", "hello", "hey", "howdy", "good morning", "good afternoon", "good evening", "greetings", "sup", "what's up"],
-    "am": ["ሰላም", "ሄሎ", "ጤና ይስጥልኝ", "እንደምን አደሩ", "እንደምን ነህ", "እንደምን ናችሁ"],
+    "am": [
+        "ሰላም", "ሄሎ", "ጤና ይስጥልኝ", "እንደምን አደሩ", "እንደምን ነህ", "እንደምን ናችሁ",
+        "እንዴት ነህ", "እንዴት ናችሁ", "ሰላም እንዴት", "ሰላም ነህ",
+    ],
     "ti": ["ሰላም", "ሄሎ", "ከመይ ኣለኻ", "ከመይ ሃሎ"],
     "om": ["nagaa", "akkam", "salaam", "asalaamaleykum"],
     "so": ["nabadgelyo", "nabad", "salaan", "asc", "assalamu calaykum"],
@@ -157,25 +160,35 @@ THANKS_REPLY: Dict[str, str] = {
 }
 
 
-def _matches_patterns(text: str, patterns: Dict[str, List[str]]) -> bool:
-    """Return True if the text (whole message, lowercased) is a social phrase.
-    Uses whole-word matching to prevent false positives (e.g. 'tyre' vs 'ty').
-    Only triggers when the entire message is essentially a social phrase,
-    not when it's embedded in a longer question.
-    """
-    lowered = text.strip().lower()
-    # Only intercept short messages (<=6 words) to avoid swallowing real questions
-    word_count = len(lowered.split())
-    if word_count > 6:
-        return False
+def _social_pattern_language(text: str, patterns: Dict[str, List[str]]) -> Optional[str]:
+    """If the message is a short social phrase, return which language pattern matched."""
     import re
-    for _, phrases in patterns.items():
+
+    from assistant.domain.language import disambiguate_ethiopic
+
+    lowered = text.strip().lower()
+    if len(lowered.split()) > 6:
+        return None
+    matches: List[str] = []
+    for lang, phrases in patterns.items():
         for phrase in phrases:
-            # Whole-phrase match at word boundaries
-            pattern = r"(?<![a-zA-Z\u1200-\u137F\u0600-\u06FF])" + re.escape(phrase) + r"(?![a-zA-Z\u1200-\u137F\u0600-\u06FF])"
+            pattern = (
+                r"(?<![a-zA-Z\u1200-\u137F\u0600-\u06FF])"
+                + re.escape(phrase.lower())
+                + r"(?![a-zA-Z\u1200-\u137F\u0600-\u06FF])"
+            )
             if re.search(pattern, lowered):
-                return True
-    return False
+                # Single-word greetings must be the whole message; longer phrases can match inside short pings.
+                word_count = len(lowered.split())
+                if len(phrase.split()) == 1 and word_count > 3:
+                    continue
+                matches.append(lang)
+                break
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return disambiguate_ethiopic(text, matches[0])
+    return disambiguate_ethiopic(text, matches[0])
 
 
 def greeting_response(language: str) -> ChatResponse:
@@ -211,16 +224,29 @@ def thanks_response(language: str) -> ChatResponse:
     )
 
 
+def _reply_language(message: str, detected: str, pattern_lang: Optional[str]) -> str:
+    from assistant.domain.language import AUTO, LANGUAGES, disambiguate_ethiopic
+
+    if detected in LANGUAGES and detected != AUTO:
+        return detected
+    if pattern_lang in LANGUAGES:
+        return disambiguate_ethiopic(message, pattern_lang)
+    return disambiguate_ethiopic(message, detected if detected in LANGUAGES else "am")
+
+
 def detect_social_response(message: str, language: str) -> Optional[ChatResponse]:
     """
     If the message is a greeting, farewell, or thanks, return an appropriate
     ChatResponse immediately — bypassing BM25 retrieval entirely.
     Returns None if this is a real course question.
     """
-    if _matches_patterns(message, GREETING_PATTERNS):
-        return greeting_response(language)
-    if _matches_patterns(message, FAREWELL_PATTERNS):
-        return farewell_response(language)
-    if _matches_patterns(message, THANKS_PATTERNS):
-        return thanks_response(language)
+    lang = _social_pattern_language(message, GREETING_PATTERNS)
+    if lang:
+        return greeting_response(_reply_language(message, language, lang))
+    lang = _social_pattern_language(message, FAREWELL_PATTERNS)
+    if lang:
+        return farewell_response(_reply_language(message, language, lang))
+    lang = _social_pattern_language(message, THANKS_PATTERNS)
+    if lang:
+        return thanks_response(_reply_language(message, language, lang))
     return None

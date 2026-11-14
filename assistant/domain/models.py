@@ -87,6 +87,12 @@ class ChatResponse(BaseModel):
         default=False,
         description="True when a curated translation was missing and the original course text was shown",
     )
+    provider: Optional[str] = Field(default=None, description="AI backend that produced the answer (offline_faq, cloud_gemini, …)")
+    cache_hit: bool = Field(default=False, description="True when the response was served from exact-answer cache")
+    answer_source: Optional[str] = Field(
+        default=None,
+        description="cache | faq | cloud | local — how the answer was produced",
+    )
 
 
 class Escalation(BaseModel):

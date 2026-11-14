@@ -58,6 +58,23 @@ class Settings:
     default_scope: str = "course:va-1"
     relevance_threshold: float = 0.35
 
+    enable_exact_cache: bool = True
+    redis_url: str = ""
+    cache_ttl_seconds: int = 3600
+    cache_max_entries: int = 4096
+
+    max_context_tokens: int = 800
+    max_output_tokens: int = 250
+    max_chars_per_passage: int = 1500
+
+    local_model_url: str = ""
+    local_model_name: str = "local-model"
+
+    openai_api_key: str = ""
+    whisper_api_key: str = ""
+    whisper_model: str = "whisper-1"
+    stt_max_bytes: int = 8 * 1024 * 1024
+
 
 def load_settings() -> Settings:
     env = os.environ
@@ -80,6 +97,19 @@ def load_settings() -> Settings:
         twilio_account_sid=env.get("TWILIO_ACCOUNT_SID", ""),
         twilio_auth_token=env.get("TWILIO_AUTH_TOKEN", ""),
         twilio_phone_number=env.get("TWILIO_PHONE_NUMBER", ""),
+        enable_exact_cache=env.get("ENABLE_EXACT_CACHE", "true").strip().lower() in ("1", "true", "yes"),
+        redis_url=env.get("REDIS_URL", "").strip(),
+        cache_ttl_seconds=int(env.get("CACHE_TTL_SECONDS", "3600")),
+        cache_max_entries=int(env.get("CACHE_MAX_ENTRIES", "4096")),
+        max_context_tokens=int(env.get("MAX_CONTEXT_TOKENS", "800")),
+        max_output_tokens=int(env.get("MAX_OUTPUT_TOKENS", "250")),
+        max_chars_per_passage=int(env.get("MAX_CHARS_PER_PASSAGE", "1500")),
+        local_model_url=env.get("LOCAL_MODEL_URL", "").strip().rstrip("/"),
+        local_model_name=env.get("LOCAL_MODEL_NAME", "local-model"),
+        openai_api_key=env.get("OPENAI_API_KEY", "").strip(),
+        whisper_api_key=env.get("WHISPER_API_KEY", "").strip(),
+        whisper_model=env.get("WHISPER_MODEL", "whisper-1"),
+        stt_max_bytes=int(env.get("STT_MAX_BYTES", str(8 * 1024 * 1024))),
     )
 
 

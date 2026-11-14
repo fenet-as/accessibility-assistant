@@ -10,9 +10,11 @@ from typing import Optional
 
 from assistant.config import DATA_DIR, Settings, get_settings
 from assistant.domain.ports import AIProvider
+from assistant.infrastructure.answer_cache import AnswerCache
 from assistant.infrastructure.chunk_store import ChunkStore
 from assistant.infrastructure.database import Database
 from assistant.infrastructure.providers import build_provider
+from assistant.infrastructure.usage import UsageTracker
 from assistant.services.analytics import AnalyticsService
 from assistant.services.careers import CareerService
 from assistant.services.course_admin import CourseAdminService
@@ -31,19 +33,32 @@ class Container:
     careers: CareerService
     analytics: AnalyticsService
     courses: CourseAdminService
+    cache: AnswerCache
+    usage: UsageTracker
 
 
 def build_container(settings: Optional[Settings] = None, provider: Optional[AIProvider] = None) -> Container:
     settings = settings or get_settings()
-    provider = provider or build_provider(settings)
+    usage = UsageTracker()
+    provider = provider or build_provider(settings, usage=usage)
+    cache = AnswerCache(settings)
     db = Database(settings.database_path)
     store = ChunkStore(settings.chunks_path, db=db)
     store.seed_from(BUNDLED_CHUNKS)
-    tutor = TutorService(store, provider, settings.relevance_threshold)
+    tutor = TutorService(
+        store,
+        provider,
+        settings.relevance_threshold,
+        cache=cache,
+        usage=usage,
+        settings=settings,
+    )
     return Container(
         settings=settings,
         provider=provider,
         tutor=tutor,
+        cache=cache,
+        usage=usage,
         escalations=EscalationService(db, settings.jitsi_base_url),
         careers=CareerService(db, settings.jobs_path),
         analytics=AnalyticsService(db),

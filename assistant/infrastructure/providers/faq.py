@@ -56,6 +56,8 @@ class OfflineFAQProvider:
         language: str,
         simple: bool = False,
         history: Optional[List[ConversationTurn]] = None,
+        *,
+        confidence: float = 0.0,
     ) -> ChatResponse:
         if not passages:
             return not_found_response(language)
@@ -86,6 +88,8 @@ class OfflineFAQProvider:
             citations=[p.to_citation() for p in used],
             actions=[HUMAN_HELP_ACTION],
             translation_fallback=used_fallback,
+            provider=self.name,
+            answer_source="faq",
         )
 
     @staticmethod

@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from assistant import __version__
 from assistant.api.dependencies import get_container
 from assistant.container import Container
+from assistant.infrastructure.speech import stt_status
 from assistant.domain.language import AUTO, SUPPORTED_LANGUAGES, UI_STRINGS, language_catalog
 
 PAGES_DIR = Path(__file__).resolve().parent.parent / "pages"
@@ -30,6 +31,21 @@ def health(container: Container = Depends(get_container)) -> Dict[str, Any]:
         "kb_version": container.tutor.kb_version,
         "languages": list(SUPPORTED_LANGUAGES),
         "version": __version__,
+        "cache_backend": container.cache.backend,
+        "exact_cache_enabled": container.settings.enable_exact_cache,
+        "usage": container.usage.snapshot(),
+        "speech": stt_status(container.settings),
+    }
+
+
+@router.get("/api/usage", tags=["System"])
+def usage_stats(container: Container = Depends(get_container)) -> Dict[str, Any]:
+    """AI token and cache counters for operators (aggregated, no learner text)."""
+    return {
+        "provider": container.provider.name,
+        "cache_backend": container.cache.backend,
+        "exact_cache_enabled": container.settings.enable_exact_cache,
+        **container.usage.snapshot(),
     }
 
 

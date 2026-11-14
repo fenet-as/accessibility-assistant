@@ -16,8 +16,11 @@ from assistant.domain.language import detect_language_with_confidence
 from assistant.domain.messages import clarification_response, not_found_response, detect_social_response
 from assistant.domain.models import ChatRequest, ChatResponse, ChatStatus, ConversationTurn, Passage
 from assistant.domain.ports import AIProvider
+from assistant.config import Settings
+from assistant.infrastructure.answer_cache import AnswerCache, is_cacheable
 from assistant.infrastructure.chunk_store import ChunkStore
 from assistant.infrastructure.retrieval import BM25Index, RetrievalResult
+from assistant.infrastructure.usage import UsageTracker
 
 TOP_K = 3
 WIDE_K = 8
@@ -42,10 +45,22 @@ def is_follow_up(message: str) -> bool:
 
 
 class TutorService:
-    def __init__(self, store: ChunkStore, provider: AIProvider, relevance_threshold: float = 0.35):
+    def __init__(
+        self,
+        store: ChunkStore,
+        provider: AIProvider,
+        relevance_threshold: float = 0.35,
+        *,
+        cache: Optional[AnswerCache] = None,
+        usage: Optional[UsageTracker] = None,
+        settings: Optional[Settings] = None,
+    ):
         self.store = store
         self.provider = provider
         self.low_confidence = relevance_threshold
+        self.cache = cache
+        self.usage = usage
+        self.settings = settings
         self._reload_lock = threading.Lock()
         self._index_version = -1
         self._index = BM25Index([])
@@ -153,6 +168,15 @@ class TutorService:
                 best = score
         return selected
 
+    def _model_version(self) -> str:
+        if not self.settings:
+            return self.provider.name
+        if self.settings.ai_provider == "cloud":
+            return f"cloud:{self.settings.gemini_model}"
+        if self.settings.ai_provider == "local":
+            return f"local:{self.settings.local_model_name}"
+        return f"faq:{self.kb_version}"
+
     def _generate(
         self,
         request: ChatRequest,
@@ -162,13 +186,38 @@ class TutorService:
         history: Optional[List[ConversationTurn]] = None,
         effective_query: Optional[str] = None,
     ):
+        question = effective_query or request.message
+        cache_key = None
+        if self.cache and self.settings and self.settings.enable_exact_cache:
+            cache_key = self.cache.make_key(
+                scope=request.scope,
+                language=language,
+                question=question,
+                simple=request.simple,
+                kb_version=self.kb_version,
+                model_version=self._model_version(),
+            )
+            cached = self.cache.get(cache_key)
+            if cached:
+                if self.usage:
+                    self.usage.record_cache_hit()
+                cached.confidence = round(confidence, 3)
+                return cached
+            if self.usage:
+                self.usage.record_cache_miss()
+
         response = self.provider.generate(
-            question=effective_query or request.message,
+            question=question,
             passages=passages,
             language=language,
             simple=request.simple,
             history=history,
+            confidence=confidence,
         )
         if response.status == ChatStatus.ANSWERED:
             response.confidence = round(confidence, 3)
+            if cache_key and self.cache and is_cacheable(response, tuple(p.section for p in passages)):
+                to_store = response.model_copy()
+                to_store.cache_hit = False
+                self.cache.set(cache_key, to_store)
         return response

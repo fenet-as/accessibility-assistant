@@ -15,6 +15,9 @@ SUPPORTED_LANGUAGES: Tuple[str, ...] = ("en", "am", "ti", "om", "so", "ar")
 AUTO = "auto"
 
 ETHIOPIC_PATTERN = re.compile(r"[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]")
+# Disambiguate Amharic vs Tigrinya when both share Ge'ez script (e.g. ሰላም).
+_AMHARIC_HINT = re.compile(r"(እንዴት|እንደምን|እባክ|እባክዎ|ይህ|ያለው|ነው|ናቸው)")
+_TIGRINYA_HINT = re.compile(r"(ከመይ|ንስኻ|ንስኺ|ሓጋዚኺ|ሓጋዚኻ|እየ|እያ|ዝኾነ|ብዛዕባ)")
 ARABIC_PATTERN = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
 LATIN_PATTERN = re.compile(r"[A-Za-zÀ-öø-ÿ]")
 WORD_PATTERN = re.compile(r"[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]+|[\u0600-\u06FF]+|[A-Za-zÀ-öø-ÿ']+")
@@ -356,6 +359,20 @@ def _marker_hits(words: Sequence[str], markers: Sequence[str]) -> float:
     return hits / max(len(unique), 1)
 
 
+def disambiguate_ethiopic(text: str, preferred: str) -> str:
+    """Pick Amharic or Tigrinya when Ge'ez script alone is ambiguous."""
+    if not contains_ethiopic(text):
+        return preferred
+    if _AMHARIC_HINT.search(text):
+        return "am"
+    if _TIGRINYA_HINT.search(text):
+        return "ti"
+    if preferred in ("am", "ti"):
+        return preferred
+    # Hackathon default for Ethiopian learners on Savanna: Amharic before Tigrinya on ties.
+    return "am"
+
+
 def detect_language_with_confidence(text: str, requested: str = AUTO) -> LanguageDetection:
     """Return the best language guess.
 
@@ -389,6 +406,8 @@ def detect_language_with_confidence(text: str, requested: str = AUTO) -> Languag
     confidence = min(1.0, max(0.2, 0.5 * best_score + 0.5 * (margin / max(best_score, 0.01))))
     if scripts.get(LANGUAGES[best_code].script, 0) < 0.2 and best_score < 0.15:
         return LanguageDetection("en", 0.4, signals={**scores, **scripts})
+    if contains_ethiopic(text):
+        best_code = disambiguate_ethiopic(text, best_code)
     return LanguageDetection(best_code, confidence, signals={**scores, **scripts})
 
 

@@ -6,7 +6,8 @@ import pytest
 
 from assistant.domain.models import ChatRequest, ChatStatus
 from assistant.infrastructure.chunk_store import ChunkStore
-from assistant.infrastructure.providers import GeminiProvider, OfflineFAQProvider, build_provider
+from assistant.infrastructure.providers import OfflineFAQProvider, build_provider
+from assistant.infrastructure.providers.composite import RoutedAIProvider
 from assistant.services.tutor import TutorService
 
 
@@ -66,29 +67,11 @@ def test_simple_mode_is_shorter(tutor):
 
 
 def test_cloud_provider_without_key_falls_back_to_offline(container):
-    provider = build_provider(replace(container.settings, ai_provider="cloud", gemini_api_key=""))
-    assert isinstance(provider, GeminiProvider)
-    tutor = TutorService(ChunkStore(container.settings.chunks_path), provider)
+    settings = replace(container.settings, ai_provider="cloud", gemini_api_key="", enable_exact_cache=False)
+    provider = build_provider(settings)
+    assert isinstance(provider, RoutedAIProvider)
+    tutor = TutorService(ChunkStore(settings.chunks_path), provider, settings=settings)
     assert tutor.answer(ChatRequest(message="What is shaping the future of VA work?")).status == ChatStatus.ANSWERED
-
-
-class CountingProvider(OfflineFAQProvider):
-    def __init__(self):
-        super().__init__()
-        self.calls = 0
-
-    def generate(self, *args, **kwargs):
-        self.calls += 1
-        return super().generate(*args, **kwargs)
-
-
-def test_answers_are_not_cached(container):
-    provider = CountingProvider()
-    tutor = TutorService(ChunkStore(container.settings.chunks_path), provider)
-
-    for text in ["What is shaping the future of VA work?", "What is shaping the future of VA work?"]:
-        assert tutor.answer(ChatRequest(message=text)).status == ChatStatus.ANSWERED
-    assert provider.calls == 2
 
 
 def test_index_reloads_when_another_worker_changes_the_corpus(container, tmp_path):
