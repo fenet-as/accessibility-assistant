@@ -11,12 +11,14 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _TMP_DIR = Path(tempfile.mkdtemp(prefix="alx-assistant-tests-"))
 shutil.copy(PROJECT_ROOT / "assistant" / "data" / "chunks.json", _TMP_DIR / "chunks.json")
+shutil.copy(PROJECT_ROOT / "assistant" / "data" / "jobs.json", _TMP_DIR / "jobs.json")
 
 # Must be set before assistant.config is imported; real env vars beat any local .env.
 os.environ.update({
     "AI_PROVIDER": "faq",
     "DATABASE_PATH": str(_TMP_DIR / "test.db"),
     "CHUNKS_PATH": str(_TMP_DIR / "chunks.json"),
+    "JOBS_PATH": str(_TMP_DIR / "jobs.json"),
     "TELEGRAM_BOT_TOKEN": "",
     "ADMIN_TOKEN": "",
 })

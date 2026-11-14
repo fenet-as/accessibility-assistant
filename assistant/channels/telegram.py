@@ -78,6 +78,20 @@ class TelegramAdapter:
         except httpx.HTTPError:
             return False
 
+    async def answer_callback_query(self, callback_query_id: str, text: Optional[str] = None) -> bool:
+        """Acknowledge Telegram callback queries so buttons stop showing spinning loading indicator."""
+        if not self.is_configured():
+            return False
+        payload: Dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
+        try:
+            async with httpx.AsyncClient(timeout=API_TIMEOUT_SECONDS) as client:
+                res = await client.post(f"{self.base_url}/answerCallbackQuery", json=payload)
+                return res.status_code == 200
+        except httpx.HTTPError:
+            return False
+
     async def handle_update(self, update: Dict[str, Any]) -> Dict[str, Any]:
         """Handle one Telegram update (webhook or polling) and describe what was done."""
         chat_id, text = None, ""
@@ -85,6 +99,9 @@ class TelegramAdapter:
         message = update.get("message") or update.get("edited_message")
 
         if callback:
+            callback_id = callback.get("id")
+            if callback_id:
+                await self.answer_callback_query(callback_id)
             chat_id = callback.get("message", {}).get("chat", {}).get("id")
             data = callback.get("data", "")
             if data.startswith("lang_"):

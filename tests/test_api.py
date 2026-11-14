@@ -69,6 +69,58 @@ def test_jobs_endpoint(client):
     assert "accommodationsOffered" in jobs[0]
 
 
+def test_create_and_delete_job_endpoint(client, container):
+    # 1. Post a new job from external partner (e.g. LIWAY / Dereja)
+    payload = {
+        "title": "Accessible Web Quality Analyst",
+        "company_name": "Ethio Inclusive Tech",
+        "description": "Test websites for WCAG 2.1 AA accessibility and screen-reader compliance.",
+        "location": "Addis Ababa",
+        "country": "ET",
+        "employment_type": "REMOTE",
+        "alternate_name": "Accessibility QA",
+        "qualifications": "Experience with NVDA, JAWS, or TalkBack.",
+        "accommodations_offered": [
+            "Screen reader friendly setup",
+            "Flexible working hours",
+            "Async team reviews",
+        ],
+    }
+    res = client.post("/api/jobs", json=payload)
+    assert res.status_code == 201
+    data = res.json()
+    assert data["status"] == "created"
+    job = data["job"]
+    job_id = job["id"]
+    assert job["title"] == "Accessible Web Quality Analyst"
+    assert job["hiringOrganization"]["name"] == "Ethio Inclusive Tech"
+    assert job["jobLocation"]["address"]["addressLocality"] == "Addis Ababa"
+    assert "Screen reader friendly setup" in job["accommodationsOffered"]
+
+    # 2. Check it appears immediately in GET /api/jobs
+    list_res = client.get("/api/jobs")
+    all_job_ids = [j["id"] for j in list_res.json()]
+    assert job_id in all_job_ids
+
+    # 3. Check Telegram and SMS summaries update immediately
+    tg_summary = container.careers.telegram_summary()
+    assert "Accessible Web Quality Analyst" in tg_summary
+    assert "Ethio Inclusive Tech" in tg_summary
+
+    sms_summary = container.careers.sms_summary()
+    assert "Accessibility QA" in sms_summary
+    assert "Ethio Inclusive Tech" in sms_summary
+
+    # 4. Delete the job and verify removal
+    del_res = client.delete(f"/api/jobs/{job_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "deleted"
+
+    # 5. Check 404 on deleting non-existent job
+    del_404 = client.delete(f"/api/jobs/{job_id}")
+    assert del_404.status_code == 404
+
+
 def test_accommodations_endpoint(client):
     res = client.post("/api/accommodations", json={
         "job_id": "job-va-01",
