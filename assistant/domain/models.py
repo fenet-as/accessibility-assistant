@@ -44,6 +44,11 @@ class Passage(BaseModel):
         return self.translations.get(language) or (self.text if language == "en" else None)
 
 
+class ConversationTurn(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str = Field(..., description="Message text")
+
+
 class ChatRequest(BaseModel):
     session: str = Field(default="anon-session", description="Anonymous session identifier")
     message: str = Field(..., min_length=1, max_length=2000, description="Learner question text")
@@ -54,6 +59,9 @@ class ChatRequest(BaseModel):
     mode: str = Field(default="normal", description="'normal' or 'simple' (plain language)")
     scope: str = Field(default="course:va-1", description="Course scope to ground answers in")
     lesson: Optional[str] = Field(default=None, description="Optional lesson id to restrict retrieval to")
+    history: List[ConversationTurn] = Field(
+        default_factory=list, description="Recent conversation turns (user/assistant) for context"
+    )
 
     @property
     def simple(self) -> bool:

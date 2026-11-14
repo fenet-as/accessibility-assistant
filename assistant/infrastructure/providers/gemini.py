@@ -5,7 +5,7 @@ so a learner never sees an error because of the cloud.
 """
 
 import logging
-from typing import List
+from typing import Any, List, Optional
 
 from assistant.domain.language import get_language
 from assistant.domain.messages import not_found_response
@@ -44,7 +44,12 @@ def build_system_instruction(language: str, simple: bool) -> str:
     return "\n".join(rules)
 
 
-def build_prompt(question: str, passages: List[Passage], language: str) -> str:
+def build_prompt(
+    question: str,
+    passages: List[Passage],
+    language: str,
+    history: Optional[List[Any]] = None,
+) -> str:
     """Only the retrieved passages (at most MAX_PASSAGES, each trimmed) are sent, never the whole course."""
     blocks = []
     for p in passages[:MAX_PASSAGES]:
@@ -54,7 +59,17 @@ def build_prompt(question: str, passages: List[Passage], language: str) -> str:
             body = f"{translated}\n\n[Original course text]\n{body}"
         blocks.append(f"[Source: {p.title} | Section: {p.section}]\n{body}")
     context = "\n\n".join(blocks)
-    return f"COURSE PASSAGES:\n{context}\n\nLEARNER QUESTION: {question}\n\nANSWER:"
+
+    history_str = ""
+    if history:
+        turns = []
+        for t in history[-4:]:
+            role = "Learner" if getattr(t, "role", "") == "user" else "Tutor"
+            turns.append(f"{role}: {getattr(t, 'content', '')}")
+        if turns:
+            history_str = "RECENT CONVERSATION HISTORY:\n" + "\n".join(turns) + "\n\n"
+
+    return f"{history_str}COURSE PASSAGES:\n{context}\n\nLEARNER QUESTION: {question}\n\nANSWER:"
 
 
 def cited_passages(answer: str, passages: List[Passage]) -> List[Passage]:
@@ -77,14 +92,15 @@ class GeminiProvider:
         passages: List[Passage],
         language: str,
         simple: bool = False,
+        history: Optional[List[Any]] = None,
     ) -> ChatResponse:
         if not self.client:
-            return self.fallback.generate(question, passages, language, simple)
+            return self.fallback.generate(question, passages, language, simple, history=history)
 
         try:
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=build_prompt(question, passages, language),
+                contents=build_prompt(question, passages, language, history=history),
                 config=types.GenerateContentConfig(
                     system_instruction=build_system_instruction(language, simple),
                     temperature=0.1,
@@ -92,7 +108,7 @@ class GeminiProvider:
             )
         except Exception:
             logger.warning("Gemini call failed; using offline fallback", exc_info=True)
-            return self.fallback.generate(question, passages, language, simple)
+            return self.fallback.generate(question, passages, language, simple, history=history)
 
         text = (response.text or "").strip()
         if not text or NOT_FOUND_SENTINEL in text:

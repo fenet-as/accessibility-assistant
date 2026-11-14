@@ -18,6 +18,21 @@ def test_query_logging_feeds_analytics(tmp_path):
     assert summary["top_topics"][0] == {"topic": "Communication", "count": 2}
 
 
+def test_conversation_turns_persistence(tmp_path):
+    db = Database(tmp_path / "conv.db")
+    assert db.get_recent_turns("session-123") == []
+
+    db.save_turn("session-123", "user", "What is AI?")
+    db.save_turn("session-123", "assistant", "AI is artificial intelligence.")
+    db.save_turn("session-123", "user", "Can you give an example?")
+
+    turns = db.get_recent_turns("session-123", limit=2)
+    assert len(turns) == 2
+    assert turns[0].role == "assistant"
+    assert turns[1].role == "user"
+    assert turns[1].content == "Can you give an example?"
+
+
 def test_session_ids_are_never_stored_in_clear(tmp_path):
     db = Database(tmp_path / "a.db")
     db.log_query("sms-+251911223344", "hello", "en", "answered")

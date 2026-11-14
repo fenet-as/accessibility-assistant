@@ -453,6 +453,7 @@
       this.scope = this.detectScope();
       this.updateScopeBadge();
       this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
+      this.recentTurns = [];
       this.ttsVoices = [];
       this.speechSupported = false;
       this.ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -994,6 +995,7 @@
       this.updateScopeBadge();
       this.appendMessage(query, 'user', this.uiLangCode());
       this.input.value = '';
+      this.recentTurns.push({ role: 'user', content: query });
 
       const online = typeof navigator === 'undefined' ? true : navigator.onLine;
       const statusBubble = document.createElement('div');
@@ -1008,6 +1010,7 @@
         language: this.currentLang,
         mode: this.simpleModeCheck.checked ? 'simple' : 'normal',
         scope: this.scope,
+        history: this.recentTurns.slice(0, -1).slice(-4),
       };
 
       try {
@@ -1069,6 +1072,10 @@
     }
 
     renderAssistantResponse(data) {
+      if (data && data.answer) {
+        this.recentTurns.push({ role: 'assistant', content: data.answer });
+        if (this.recentTurns.length > 8) this.recentTurns = this.recentTurns.slice(-8);
+      }
       const beforeCount = this.messagesContainer.children.length;
       this.appendMessage(data.answer, 'assistant', data.language, data.citations || []);
       const bubble = this.messagesContainer.children[this.messagesContainer.children.length - 1];

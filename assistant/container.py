@@ -39,7 +39,7 @@ def build_container(settings: Optional[Settings] = None, provider: Optional[AIPr
     db = Database(settings.database_path)
     store = ChunkStore(settings.chunks_path)
     store.seed_from(BUNDLED_CHUNKS)
-    tutor = TutorService(store, provider, settings.relevance_threshold)
+    tutor = TutorService(store, provider, settings.relevance_threshold, db=db)
     return Container(
         settings=settings,
         provider=provider,

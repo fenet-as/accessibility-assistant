@@ -8,7 +8,7 @@ notice — translations are never invented offline, and no cloud translation API
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from assistant.domain.messages import not_found_response, translation_notice
 from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, Passage
@@ -53,12 +53,19 @@ class OfflineFAQProvider:
         passages: List[Passage],
         language: str,
         simple: bool = False,
+        history: Optional[List[Any]] = None,
     ) -> ChatResponse:
         if not passages:
             return not_found_response(language)
 
         used = self._passages_to_use(passages)
         query_terms = set(analyze(question))
+        if history and len(query_terms) < 3:
+            for turn in reversed(history):
+                if getattr(turn, "role", "") == "user":
+                    query_terms |= set(analyze(getattr(turn, "content", "")))
+                    break
+
         parts: List[str] = []
         used_fallback = False
         for position, passage in enumerate(used):
