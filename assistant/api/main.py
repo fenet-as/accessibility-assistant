@@ -12,7 +12,7 @@ _base_dir = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_base_dir / ".env", override=True)
 
 from typing import List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -282,11 +282,48 @@ def lti_launch(req: Dict[str, Any] = None) -> Dict[str, Any]:
 
 
 @app.post("/api/sms/inbound", tags=["SMS Channel"])
-def sms_inbound(req: SMSInboundRequest) -> Dict[str, Any]:
-    """Inbound SMS endpoint for low-bandwidth users and SMS gateways."""
-    segments = sms_adapter.handle_inbound_sms(req.sender, req.body)
+async def sms_inbound(request: Request) -> Dict[str, Any]:
+    """
+    Universal 2-Way Inbound SMS endpoint.
+    Accepts webhooks from Africa's Talking, Android GSM Gateway, Twilio, or direct JSON.
+    Normalizes Ethiopian numbers (+2519... / +2517...) and dispatches replies automatically.
+    """
+    content_type = request.headers.get("content-type", "")
+    sender = ""
+    body = ""
+
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+            sender = data.get("sender") or data.get("from") or data.get("From") or ""
+            body = data.get("body") or data.get("text") or data.get("message") or data.get("Body") or ""
+        except Exception:
+            pass
+    else:
+        # Form URL-encoded (Africa's Talking, Twilio, Android Gateway)
+        try:
+            from urllib.parse import parse_qs
+            raw_bytes = await request.body()
+            if raw_bytes:
+                parsed = parse_qs(raw_bytes.decode("utf-8"))
+                flat = {k.lower(): v[0] for k, v in parsed.items()}
+                sender = flat.get("from") or flat.get("sender") or flat.get("phonenumber") or ""
+                body = flat.get("text") or flat.get("body") or flat.get("message") or ""
+        except Exception:
+            pass
+
+    # Fallback to query params if sent in GET/query
+    if not sender:
+        sender = request.query_params.get("from") or request.query_params.get("sender") or "+251911000000"
+    if not body:
+        body = request.query_params.get("text") or request.query_params.get("body") or "HELP"
+
+    normalized_sender = sms_adapter.normalize_ethiopian_phone(str(sender))
+    segments = sms_adapter.handle_inbound_sms(normalized_sender, str(body), dispatch_replies=True)
+
     return {
-        "sender": req.sender,
+        "status": "success",
+        "sender": normalized_sender,
         "segments": segments,
         "count": len(segments)
     }

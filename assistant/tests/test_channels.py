@@ -109,3 +109,36 @@ async def test_telegram_unconfigured_get_me():
     info = await empty_adapter.get_me()
     assert info is None
 
+
+def test_sms_ethiopian_phone_normalization(sms_adapter):
+    """Verify Ethio Telecom and Safaricom phone numbers normalize to +251..."""
+    assert sms_adapter.normalize_ethiopian_phone("0911223344") == "+251911223344"
+    assert sms_adapter.normalize_ethiopian_phone("0711223344") == "+251711223344"
+    assert sms_adapter.normalize_ethiopian_phone("251911223344") == "+251911223344"
+    assert sms_adapter.normalize_ethiopian_phone("+251911223344") == "+251911223344"
+
+
+def test_sms_inbound_api_universal():
+    """Verify POST /api/sms/inbound handles both JSON and Form webhooks from African gateways."""
+    from fastapi.testclient import TestClient
+    from assistant.api.main import app
+
+    client = TestClient(app)
+
+    # 1. JSON webhook (Android Gateway / custom)
+    res_json = client.post("/api/sms/inbound", json={"from": "0911223344", "text": "HELP"})
+    assert res_json.status_code == 200
+    data_json = res_json.json()
+    assert data_json["status"] == "success"
+    assert data_json["sender"] == "+251911223344"
+    assert len(data_json["segments"]) >= 1
+
+    # 2. Form-encoded webhook (Africa's Talking / Twilio)
+    res_form = client.post("/api/sms/inbound", data={"From": "0711223344", "Body": "1"})
+    assert res_form.status_code == 200
+    data_form = res_form.json()
+    assert data_form["status"] == "success"
+    assert data_form["sender"] == "+251711223344"
+    assert "Junior VA" in data_form["segments"][0]
+
+
