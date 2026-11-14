@@ -4,8 +4,15 @@ Normalizes Telegram updates to core ChatRequest and formats replies with inline 
 """
 
 import os
+import asyncio
+from pathlib import Path
 from typing import Dict, Any, Optional
 import httpx
+from dotenv import load_dotenv
+
+_base_dir = Path(__file__).resolve().parent.parent.parent.parent
+load_dotenv(_base_dir / ".env", override=True)
+
 from assistant.core.models import ChatRequest, ChatStatus
 from assistant.core.grounding import GroundingEngine
 
@@ -14,11 +21,24 @@ engine = GroundingEngine()
 
 class TelegramAdapter:
     def __init__(self, token: Optional[str] = None):
-        self.token = token or os.getenv("TELEGRAM_BOT_TOKEN", "")
+        self.token = os.getenv("TELEGRAM_BOT_TOKEN", "") if token is None else token
         self.base_url = f"https://api.telegram.org/bot{self.token}" if self.token else ""
 
     def is_configured(self) -> bool:
         return bool(self.token)
+
+    async def get_me(self) -> Optional[Dict[str, Any]]:
+        """Validate token and fetch bot metadata from Telegram API."""
+        if not self.is_configured():
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(f"{self.base_url}/getMe")
+                if res.status_code == 200:
+                    return res.json().get("result")
+        except Exception:
+            return None
+        return None
 
     async def send_message(
         self,
@@ -166,4 +186,64 @@ class TelegramAdapter:
             "status": response.status.value,
             "citations": len(response.citations)
         }
+
+    async def poll(self):
+        """Run long-polling loop to listen for updates without webhooks."""
+        if not self.is_configured():
+            print("\n❌ [Telegram Bot] TELEGRAM_BOT_TOKEN is not set in .env!")
+            print("👉 Get a token from @BotFather on Telegram and add it to your .env file:")
+            print("   TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ\n")
+            return
+
+        bot_info = await self.get_me()
+        if not bot_info:
+            print("\n❌ [Telegram Bot] Authentication failed! Please verify TELEGRAM_BOT_TOKEN in .env.")
+            return
+
+        username = bot_info.get("username", "UnknownBot")
+        first_name = bot_info.get("first_name", "Assistant")
+        print("\n" + "=" * 60)
+        print(f"🤖 Telegram Bot Connected: @{username} ({first_name})")
+        print("⚡ Mode: Long-Polling (No Webhook/Tunnel required!)")
+        print("👂 Listening for messages... Send /start to your bot in Telegram.")
+        print("=" * 60 + "\n")
+
+        offset = 0
+        async with httpx.AsyncClient(timeout=35.0) as client:
+            while True:
+                try:
+                    res = await client.get(
+                        f"{self.base_url}/getUpdates",
+                        params={"offset": offset, "timeout": 25}
+                    )
+                    if res.status_code == 200:
+                        updates = res.json().get("result", [])
+                        for update in updates:
+                            offset = update["update_id"] + 1
+                            result = await self.handle_update(update)
+                            action = result.get("action")
+                            cid = result.get("chat_id")
+                            if action:
+                                print(f"📩 Handled '{action}' for Chat ID {cid}")
+                    elif res.status_code == 409:
+                        print("⚠️ [Telegram Bot] Conflict: Webhook is active or another instance is running. Waiting 5s...")
+                        await asyncio.sleep(5)
+                    else:
+                        await asyncio.sleep(2)
+                except httpx.TimeoutException:
+                    continue
+                except asyncio.CancelledError:
+                    print("\n🛑 [Telegram Bot] Stopped polling.")
+                    break
+                except Exception as e:
+                    print(f"⚠️ [Telegram Bot] Network error: {e}. Retrying in 3s...")
+                    await asyncio.sleep(3)
+
+
+if __name__ == "__main__":
+    adapter = TelegramAdapter()
+    try:
+        asyncio.run(adapter.poll())
+    except KeyboardInterrupt:
+        print("\n🛑 Bot exited.")
 

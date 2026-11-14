@@ -61,12 +61,17 @@ class SMSAdapter:
                 "3: Amharic (አማርኛ)"
             ]
 
-        if upper in ["1", "JOBS", "JOB"]:
+        if upper in ["3", "AMHARIC", "አማርኛ"]:
+            return [
+                "ALX ረዳት፡ ጥያቄዎን በአማርኛ ይጻፉ ወይም:\n1: ክፍት የሥራ ቦታዎች\n2: የቀጥታ መምህር እርዳታ"
+            ]
+
+        if upper in ["1", "JOBS", "JOB", "ሥራ", "ስራ"]:
             return [
                 "ALX Jobs: 1) Junior VA (African Remote Ops, Remote) 2) Digital Coordinator. Visit portal to apply with accommodations."
             ]
 
-        if upper in ["2", "HUMAN", "HELP ME", "TUTOR"]:
+        if upper in ["2", "HUMAN", "HELP ME", "TUTOR", "እርዳታ", "መምህር"]:
             return [
                 "ALX Tutor: Human tutor request received! A tutor has been notified and will reach out via SMS/Phone."
             ]

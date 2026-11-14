@@ -290,3 +290,4 @@ class UniversalChunker:
             json.dump(filtered, f, indent=2, ensure_ascii=False)
 
         return True
+

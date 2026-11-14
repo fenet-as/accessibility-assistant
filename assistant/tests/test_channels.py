@@ -85,3 +85,27 @@ async def test_telegram_human_command(tg_adapter):
     res = await tg_adapter.handle_update(update)
     assert res["action"] == "human_escalate"
     assert "ALX-Help-" in res["room"]
+
+
+@pytest.mark.anyio
+async def test_telegram_jobs_command(tg_adapter):
+    """Telegram /jobs command returns career listings."""
+    update = {
+        "message": {
+            "chat": {"id": 12345},
+            "text": "/jobs"
+        }
+    }
+    res = await tg_adapter.handle_update(update)
+    assert res["action"] == "jobs"
+    assert res["chat_id"] == 12345
+
+
+@pytest.mark.anyio
+async def test_telegram_unconfigured_get_me():
+    """Empty token returns None gracefully."""
+    empty_adapter = TelegramAdapter(token="")
+    assert not empty_adapter.is_configured()
+    info = await empty_adapter.get_me()
+    assert info is None
+
