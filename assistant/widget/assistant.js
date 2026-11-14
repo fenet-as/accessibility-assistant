@@ -1119,6 +1119,12 @@
       const script = document.currentScript || document.querySelector('script[src*="assistant.js"]');
       const assistantEl = document.createElement('alx-assistant');
       if (script) {
+        if (!script.hasAttribute('data-api') && script.src) {
+          try {
+            const scriptUrl = new URL(script.src, window.location.href);
+            assistantEl.setAttribute('data-api', scriptUrl.origin + '/api');
+          } catch (e) {}
+        }
         ['data-api', 'data-lang', 'data-source', 'data-scope', 'data-course-id'].forEach((name) => {
           const value = script.getAttribute(name);
           if (value) assistantEl.setAttribute(name, value);

@@ -67,7 +67,7 @@ def split_segments(text: str) -> List[str]:
 
 
 async def parse_inbound_payload(request: Request) -> Tuple[str, str]:
-    """Accept Africa's Talking, Twilio, Android GSM gateway, or plain JSON webhooks."""
+    """Accept Africa's Talking, Telerivet, Twilio, Android GSM gateway, or plain JSON webhooks."""
     content_type = request.headers.get("content-type", "")
     sender = ""
     body = ""
@@ -75,8 +75,23 @@ async def parse_inbound_payload(request: Request) -> Tuple[str, str]:
     if "application/json" in content_type:
         try:
             data = await request.json()
-            sender = data.get("sender") or data.get("from") or data.get("From") or ""
-            body = data.get("body") or data.get("text") or data.get("message") or data.get("Body") or ""
+            sender = (
+                data.get("from_number")
+                or data.get("from_number_e164")
+                or data.get("sender")
+                or data.get("from")
+                or data.get("From")
+                or data.get("phone")
+                or ""
+            )
+            body = (
+                data.get("content")
+                or data.get("body")
+                or data.get("text")
+                or data.get("message")
+                or data.get("Body")
+                or ""
+            )
         except Exception:
             pass
     else:
@@ -84,15 +99,38 @@ async def parse_inbound_payload(request: Request) -> Tuple[str, str]:
             raw = await request.body()
             if raw:
                 flat = {k.lower(): v[0] for k, v in parse_qs(raw.decode("utf-8")).items()}
-                sender = flat.get("from") or flat.get("sender") or flat.get("phonenumber") or ""
-                body = flat.get("text") or flat.get("body") or flat.get("message") or ""
+                sender = (
+                    flat.get("from_number")
+                    or flat.get("from_number_e164")
+                    or flat.get("from")
+                    or flat.get("sender")
+                    or flat.get("phonenumber")
+                    or ""
+                )
+                body = (
+                    flat.get("content")
+                    or flat.get("text")
+                    or flat.get("body")
+                    or flat.get("message")
+                    or ""
+                )
         except Exception:
             pass
 
     if not sender:
-        sender = request.query_params.get("from") or request.query_params.get("sender") or "+251911000000"
+        sender = (
+            request.query_params.get("from_number")
+            or request.query_params.get("from")
+            or request.query_params.get("sender")
+            or "+251911000000"
+        )
     if not body:
-        body = request.query_params.get("text") or request.query_params.get("body") or "HELP"
+        body = (
+            request.query_params.get("content")
+            or request.query_params.get("text")
+            or request.query_params.get("body")
+            or "HELP"
+        )
     return str(sender), str(body)
 
 

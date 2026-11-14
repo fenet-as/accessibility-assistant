@@ -9,6 +9,12 @@ from assistant.channels.telegram import TelegramAdapter
 router = APIRouter(prefix="/api")
 
 
+@router.get("/sms/inbound", tags=["SMS Channel"])
+async def sms_inbound_check() -> Dict[str, Any]:
+    """Health/verification check for SMS webhooks (e.g. Telerivet, Africa's Talking)."""
+    return {"status": "ok", "message": "SMS webhook endpoint is active"}
+
+
 @router.post("/sms/inbound", tags=["SMS Channel"])
 async def sms_inbound(
     request: Request,
@@ -16,8 +22,8 @@ async def sms_inbound(
 ) -> Dict[str, Any]:
     """
     Universal 2-way inbound SMS webhook.
-    Accepts Africa's Talking, Android GSM gateway, Twilio, or plain JSON.
-    Normalizes Ethiopian numbers and optionally dispatches replies.
+    Accepts Telerivet, Africa's Talking, Android GSM gateway, Twilio, or plain JSON.
+    Normalizes Ethiopian numbers and returns Telerivet/gateway auto-reply messages.
     """
     sender, body = await parse_inbound_payload(request)
     normalized = sms.normalize_ethiopian_phone(sender)
@@ -27,6 +33,7 @@ async def sms_inbound(
         "sender": normalized,
         "segments": segments,
         "count": len(segments),
+        "messages": [{"content": seg} for seg in segments],  # Telerivet auto-reply
     }
 
 

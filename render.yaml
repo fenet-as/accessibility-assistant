@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: accessibility-assistant
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: AI_PROVIDER
+        value: faq
+      - key: CORS_ORIGINS
+        value: "*"
