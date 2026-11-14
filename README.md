@@ -68,7 +68,17 @@ WCAG 2.2 AA Gate Status: PASS — Eligible for Stage 2 Scoring
 
 ---
 
-## Quick Start & Local Running Instructions
+## Quick Start & Deployment Instructions
+
+### ⚡ Option A: One-Command Docker Deployment (Recommended)
+```bash
+docker compose up --build
+```
+The server will start immediately at `http://localhost:8000`.
+
+---
+
+### Option B: Local Python Setup (Without Docker)
 
 Follow these step-by-step instructions to run the entire stack locally on Windows, macOS, or Linux.
 

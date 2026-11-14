@@ -1,0 +1,26 @@
+services:
+  assistant-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alx-accessibility-assistant
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - AI_PROVIDER=${AI_PROVIDER:-faq}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_STAFF_CHAT_ID=${TELEGRAM_STAFF_CHAT_ID:-}
+      - JITSI_BASE_URL=${JITSI_BASE_URL:-https://meet.jit.si}
+      - DATABASE_PATH=/app/assistant/data/assistant.db
+    volumes:
+      - ./assistant/data:/app/assistant/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
