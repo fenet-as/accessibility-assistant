@@ -1,62 +1,46 @@
 # 01 – Architecture & Decisions
 
-*Status: design agreed, nothing built yet. Reflects decisions D1–D7 below. Savanna-specific details will be revised after the kick-off starter project.*
+*Status: implemented. Code layout and scaling notes are summarised in the README; this document records why.*
 
 ## 1. Shape of the system
 
-One backend core, three thin channel adapters, and swappable providers behind clean interfaces.
+One set of services, thin delivery adapters, and swappable infrastructure behind interfaces.
 
 ```
-  Web widget (script tag, Shadow DOM) ─┐
-  Telegram bot adapter ─────────────────┼─►  Core service (FastAPI)
-  SMS adapter (real gateway or simulator) ┘        │
-                                                    ├─ Conversation router: course | jobs | human
-                                                    ├─ Retrieval (keyword, then embeddings)
-                                                    ├─ AI provider: cloud | local | offline FAQ
-                                                    ├─ Speech provider: browser | server
-                                                    ├─ Jobs, alerts, accommodation requests
-                                                    ├─ Escalation (staff Telegram group + Jitsi link)
-                                                    └─ SQLite (anonymous sessions, no personal data)
+  Web widget (script tag, Shadow DOM) ─► api/ routers ─┐
+  Telegram (webhook or long-poll) ─────► channels/telegram.py ─┼─► container ─► services ─► domain
+  SMS gateway / simulator ─────────────► channels/sms.py ─┘                      │
+                                                                       infrastructure (implements domain ports):
+                                                                       BM25 index · chunk store · SQLite · AI providers
 ```
 
-**Design rule:** every channel sends the same normalised message to the core and receives the same structured reply (text, citations, status, suggested actions). Each adapter only formats that reply for its channel.
+**Dependency rule:** `domain` imports nothing from the app. `services` import `domain` and infrastructure *types*. `api` and `channels` only call `services`. Only `container.py` constructs concrete classes.
+
+**Channel rule:** every channel sends a `ChatRequest` to `TutorService` and gets back a `ChatResponse` (status, answer, citations, actions). The adapter only formats that response for its medium.
 
 ## 2. Decisions
 
 | ID | Decision | Choice | Why | Revisit when |
 | --- | --- | --- | --- | --- |
-| D1 | Backend | **FastAPI (Python)** | Team lead knows Python; best fit for RAG and local models; free OpenAPI docs | Teammates are formed |
-| D2 | Widget | **Vanilla JS or Lit, Shadow DOM web component** | Small bundle for 3G; CSS isolation from Bootstrap on Savanna | Starter project shows a conflicting embed model |
-| D3 | Retrieval | **Keyword baseline first, then multilingual embeddings** | Baseline works offline; embeddings needed for Amharic question to English passage | After testing on real Amharic questions |
-| D4 | AI provider | **Interface with three implementations; cloud for demo, live switch to offline FAQ** | Meets pluggable-AI requirement without lock-in | Cloud free tier and data terms checked |
-| D5 | Human handoff | **Escalation posts to a staff Telegram group; Jitsi room link, learner starts sharing** | Cheap, learner-controlled, no custom signalling | Jitsi embedding/auth behaviour verified; organizers name the support team |
-| D6 | Storage | **SQLite, anonymous session IDs, no personal data** | Minimum data collection; zero running cost | Hardening sprint scaling needs |
-| D7 | Job data | **Hand-made sample jobs as schema.org/JobPosting JSON-LD** | Real source unknown; JSON-LD earns Level 3 interoperability | Organizers provide a job source |
+| D1 | Backend | FastAPI (Python) | Free OpenAPI docs; good fit for retrieval and local models | – |
+| D2 | Widget | Vanilla JS web component, Shadow DOM | No build step, small for 3G, CSS isolated from Savanna's Bootstrap | Starter shows a conflicting embed model |
+| D3 | Retrieval | BM25 with bilingual keyword tags, inverted index | Works offline; deterministic; fast enough for thousands of chunks | Amharic-question recall is too low → add multilingual embeddings behind the same `search()` |
+| D4 | AI provider | `AIProvider` port; offline FAQ and Gemini implementations | No paid-API lock-in; Gemini degrades to offline on any failure | A local open model is available → add a third implementation |
+| D5 | Human handoff | Logged ticket + unguessable Jitsi room; learner opens it | Cheap, learner-controlled, no custom signalling | Organizers name the support team → notify a staff Telegram group from `EscalationService` |
+| D6 | Storage | SQLite in WAL mode, hashed session ids | Zero cost, multiple workers on one host, no plain-text identifiers | More than one host → Postgres with the same `Database` methods |
+| D7 | Job data | `data/jobs.json` as schema.org/JobPosting | Level 3 interoperability; one source for web, SMS and Telegram | A job source or API is provided |
+| D8 | Course corpus | `chunks.json`, atomic writes, version = file mtime | Every worker picks up ingests without a message bus | Large corpora → database or object storage |
+| D9 | Scale | Multiple uvicorn workers, in-process LRU answer cache, GZip | Repeated cohort questions served without the AI call; small payloads | Per-host limits reached → horizontal scaling behind a load balancer |
 
-**Still open:** which cloud LLM to use as the demo default; which embedding model; SMS gateway; whether the embed host exposes course content by API.
+## 3. Cross-cutting rules
 
-## 3. Repository layout (monorepo)
+- **Configuration only through environment variables** (`assistant/config.py`). No secrets in the repo.
+- **Provider-specific code stays in its provider module.** Swapping providers changes `AI_PROVIDER`, not code.
+- **Language:** every response carries `am` or `en`; the widget sets `lang` and `dir` on each message.
+- **Degradation order:** cloud AI, then offline FAQ, then "connect me to a human".
+- **Honest status:** `answered`, `not_found` or `needs_human`, never a guess.
+- **Tests never touch real data:** `tests/conftest.py` points the database and corpus at temporary copies.
 
-```
-assistant/
-  widget/        Shadow DOM web component, built to assistant.js
-  api/           FastAPI app, routes, OpenAPI spec
-  core/          router, retrieval, providers (llm, speech), grounding rules
-  adapters/      telegram/, sms/ (gateway + simulator)
-  ingest/        course and job content to chunks
-  data/          sample course content, sample jobs, offline FAQ (am + en)
-  tests/         unit, API, accessibility (axe-core via Playwright)
-  docs/          these documents, install guide, WCAG report, licence
-```
+## 4. What changes when the real Savanna starter arrives
 
-## 4. Cross-cutting rules
-
-- **Configuration by environment variables.** One setting picks the AI provider (for example `AI_PROVIDER=cloud|local|faq`). No keys in the repo.
-- **No provider-specific code outside its adapter.** If swapping providers requires editing core logic, the design has failed.
-- **Language handling:** every message carries a language tag (`am` or `en`); the widget sets `lang` and `dir` accordingly.
-- **Graceful degradation order:** cloud AI, then local model, then offline FAQ, then "connect me to a human".
-- **Honest status:** the system reports what it did (`answered`, `not_found`, `needs_human`) instead of guessing.
-
-## 5. What changes at kick-off
-
-The real Savanna starter project and documentation replace assumptions drawn from the static pages. Expect to adjust: the embed method, authentication, how course content is read, and whether LTI is practical. The core, providers and channel adapters should not need to change.
+Expect to adjust the embed method, authentication, and how course content is read (a new parser in `ingest/`). Services, domain and channels should not need to change.

@@ -763,31 +763,24 @@
           </svg>
           <span class="alx-speak-label">Listen</span>
         `;
+        const labelSpan = speakBtn.querySelector('.alx-speak-label');
+        const setSpeaking = (speaking) => {
+          speakBtn.classList.toggle('speaking', speaking);
+          labelSpan.textContent = speaking ? 'Stop' : 'Listen';
+          speakBtn.setAttribute('aria-label', speaking ? 'Stop - Stop reading aloud' : 'Listen - Read response aloud');
+        };
         speakBtn.addEventListener('click', () => {
-          const labelSpan = speakBtn.querySelector('.alx-speak-label');
           if (window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
-            speakBtn.classList.remove('speaking');
-            if (labelSpan) labelSpan.textContent = 'Listen';
-            speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
-          } else {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = isAmharic ? 'am-ET' : 'en-US';
-            utterance.onend = () => {
-              speakBtn.classList.remove('speaking');
-              if (labelSpan) labelSpan.textContent = 'Listen';
-              speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
-            };
-            utterance.onerror = () => {
-              speakBtn.classList.remove('speaking');
-              if (labelSpan) labelSpan.textContent = 'Listen';
-              speakBtn.setAttribute('aria-label', 'Listen - Read response aloud');
-            };
-            speakBtn.classList.add('speaking');
-            if (labelSpan) labelSpan.textContent = 'Stop';
-            speakBtn.setAttribute('aria-label', 'Stop - Stop reading aloud');
-            window.speechSynthesis.speak(utterance);
+            setSpeaking(false);
+            return;
           }
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = isAmharic ? 'am-ET' : 'en-US';
+          utterance.onend = () => setSpeaking(false);
+          utterance.onerror = () => setSpeaking(false);
+          setSpeaking(true);
+          window.speechSynthesis.speak(utterance);
         });
         bubble.appendChild(speakBtn);
       }
@@ -851,23 +844,39 @@
       }
     }
 
-    requestHumanHelp() {
+    async requestHumanHelp() {
       const isAmharic = this.currentLang === 'am';
       const promptText = isAmharic
         ? 'የቀጥታ ረዳት እርዳታ ይፈልጋሉ? ረዳቱን ወደ Jitsi ስክሪን መጋሪያ ክፍል ለመጋበዝ ፈቃደኛ ነዎት?'
         : 'Would you like to connect with a live tutor? A secure Jitsi meeting link will be created for you to share your screen with explicit consent.';
 
-      if (window.confirm(promptText)) {
-        const roomName = 'ALX-Savanna-Help-' + Math.random().toString(36).substring(2, 8);
-        const jitsiUrl = `https://meet.jit.si/${roomName}`;
+      if (!window.confirm(promptText)) return;
+
+      try {
+        const res = await fetch(`${this.apiUrl}/escalate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session: this.sessionId, language: isAmharic ? 'am' : 'en' })
+        });
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        const ticket = await res.json();
+
         this.appendMessage(
           isAmharic
-            ? `የእርዳታ ጥያቄዎ ተልኳል! ከረዳቱ ጋር ለመነጋገር እና ስክሪንዎን ለማጋራት የሚከተለውን ሊንክ ይክፈቱ፡ ${jitsiUrl}`
-            : `Human tutor request dispatched! When you are ready to share your screen, click here to open the secure session: ${jitsiUrl}`,
+            ? `የእርዳታ ጥያቄዎ ተልኳል (${ticket.ticket_id})! ከረዳቱ ጋር ለመነጋገር እና ስክሪንዎን ለማጋራት የሚከተለውን ሊንክ ይክፈቱ፡ ${ticket.jitsi_room_url}`
+            : `Human tutor request dispatched (${ticket.ticket_id})! When you are ready to share your screen, open the secure session: ${ticket.jitsi_room_url}`,
           'assistant',
           this.currentLang
         );
-        window.open(jitsiUrl, '_blank', 'noopener,noreferrer');
+        window.open(ticket.jitsi_room_url, '_blank', 'noopener,noreferrer');
+      } catch (err) {
+        this.appendMessage(
+          isAmharic
+            ? 'ይቅርታ፣ የእርዳታ ጥያቄውን መላክ አልተቻለም። እባክዎ እንደገና ይሞክሩ።'
+            : 'Sorry, the help request could not be sent. Please try again.',
+          'assistant',
+          this.currentLang
+        );
       }
     }
   }
@@ -881,11 +890,10 @@
       const script = document.currentScript || document.querySelector('script[src*="assistant.js"]');
       const assistantEl = document.createElement('alx-assistant');
       if (script) {
-        if (script.getAttribute('data-api')) assistantEl.setAttribute('data-api', script.getAttribute('data-api'));
-        if (script.getAttribute('data-lang')) assistantEl.setAttribute('data-lang', script.getAttribute('data-lang'));
-        if (script.getAttribute('data-source')) assistantEl.setAttribute('data-source', script.getAttribute('data-source'));
-        if (script.getAttribute('data-scope')) assistantEl.setAttribute('data-scope', script.getAttribute('data-scope'));
-        if (script.getAttribute('data-course-id')) assistantEl.setAttribute('data-course-id', script.getAttribute('data-course-id'));
+        ['data-api', 'data-lang', 'data-source', 'data-scope', 'data-course-id'].forEach((name) => {
+          const value = script.getAttribute(name);
+          if (value) assistantEl.setAttribute(name, value);
+        });
       }
       document.body.appendChild(assistantEl);
     }
