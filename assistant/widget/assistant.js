@@ -455,8 +455,14 @@
       this.updateScopeBadge();
       this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
       this.ttsVoices = [];
-      this.speechSupported = false;
-      this.ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+      this.currentAudio = null;
+      this.activeSpeakButtonReset = null;
+      this.mediaRecorder = null;
+      this.audioStream = null;
+      this.audioChunks = [];
+      this.hasMediaRecorder = typeof window !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices && !!navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
+      this.speechSupported = this.hasMediaRecorder || (typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition));
+      this.ttsSupported = typeof window !== 'undefined' && (('Audio' in window) || ('speechSynthesis' in window));
 
       this.launcher = this.shadowRoot.getElementById('alx-launcher');
       this.dialog = this.shadowRoot.getElementById('alx-dialog');
@@ -520,6 +526,8 @@
     }
 
     clearChatHistory() {
+      this.stopAllSpeech();
+      if (this.isListening) this.stopListening();
       this.chatHistory = [];
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
@@ -816,6 +824,8 @@
     }
 
     close() {
+      this.stopAllSpeech();
+      if (this.isListening) this.stopListening();
       this.isOpen = false;
       this.dialog.setAttribute('hidden', '');
       this.launcher.setAttribute('aria-expanded', 'false');
@@ -846,8 +856,10 @@
 
     hasTtsVoice(bcp47) {
       if (!this.ttsSupported) return false;
-      if (!this.ttsVoices.length) return true; // unknown yet — allow attempt; error handler falls back
       const prefix = (bcp47 || 'en').split('-')[0].toLowerCase();
+      // Ethiopian and regional languages supported natively by Addis AI backend voice service
+      if (['am', 'ti', 'om', 'en', 'sid', 'wal', 'sw'].includes(prefix)) return true;
+      if (!this.ttsVoices.length) return true; // unknown yet — allow attempt; error handler falls back
       return this.ttsVoices.some((v) => (v.lang || '').toLowerCase().startsWith(prefix));
     }
 
@@ -864,51 +876,182 @@
       }
     }
 
+    stopAllSpeech() {
+      if (this.currentAudio) {
+        try {
+          this.currentAudio.pause();
+          this.currentAudio.currentTime = 0;
+        } catch (_) {}
+        this.currentAudio = null;
+      }
+      if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+      if (this.activeSpeakButtonReset) {
+        try { this.activeSpeakButtonReset(); } catch (_) {}
+        this.activeSpeakButtonReset = null;
+      }
+    }
+
+    fallbackBrowserSpeech(text, bcp, setSpeaking) {
+      if (typeof window === 'undefined' || !window.speechSynthesis) {
+        setSpeaking(false);
+        this.voiceNote.hidden = false;
+        this.voiceNote.textContent = this.t('speak_unsupported');
+        return;
+      }
+      try {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = bcp;
+        const voice = this.ttsVoices.find((v) => (v.lang || '').toLowerCase().startsWith(bcp.split('-')[0].toLowerCase()));
+        if (voice) utterance.voice = voice;
+        utterance.onend = () => {
+          setSpeaking(false);
+          this.activeSpeakButtonReset = null;
+        };
+        utterance.onerror = () => {
+          setSpeaking(false);
+          this.activeSpeakButtonReset = null;
+          this.voiceNote.hidden = false;
+          this.voiceNote.textContent = this.t('speak_unsupported');
+        };
+        this.activeSpeakButtonReset = () => {
+          setSpeaking(false);
+          if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+        };
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        setSpeaking(false);
+        this.voiceNote.hidden = false;
+        this.voiceNote.textContent = this.t('speak_unsupported');
+      }
+    }
+
     initVoiceInput() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
+      const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+      this.hasMediaRecorder = typeof window !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices && !!navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
+
+      if (!SpeechRecognition && !this.hasMediaRecorder) {
         this.speechSupported = false;
         if (this.voiceBtn) this.voiceBtn.hidden = true;
         this.refreshVoiceCapabilityHints();
         return;
       }
+
       this.speechSupported = true;
-      try {
-        this.recognition = new SpeechRecognition();
-        this.recognition.continuous = false;
-        this.recognition.interimResults = true;
-        this.isListening = false;
+      this.isListening = false;
+      this.mediaRecorder = null;
+      this.audioStream = null;
+      this.audioChunks = [];
 
-        this.recognition.onstart = () => {
-          this.isListening = true;
-          this.voiceBtn.classList.add('listening');
-          this.voiceBtn.setAttribute('aria-pressed', 'true');
-          this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
-          this.input.placeholder = this.t('listening');
-        };
-        this.recognition.onresult = (event) => {
-          this.input.value = Array.from(event.results).map((res) => res[0].transcript).join('');
-        };
-        this.recognition.onerror = () => this.stopListening();
-        this.recognition.onend = () => this.stopListening();
+      if (SpeechRecognition) {
+        try {
+          this.recognition = new SpeechRecognition();
+          this.recognition.continuous = false;
+          this.recognition.interimResults = true;
+          this.recognition.onstart = () => {
+            this.isListening = true;
+            this.voiceBtn.classList.add('listening');
+            this.voiceBtn.setAttribute('aria-pressed', 'true');
+            this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
+            this.input.placeholder = this.t('listening');
+          };
+          this.recognition.onresult = (event) => {
+            this.input.value = Array.from(event.results).map((res) => res[0].transcript).join('');
+          };
+          this.recognition.onerror = () => this.stopListening();
+          this.recognition.onend = () => this.stopListening();
+        } catch (e) {
+          this.recognition = null;
+        }
+      }
 
-        this.voiceBtn.addEventListener('click', () => {
+      if (this.voiceBtn) {
+        this.voiceBtn.addEventListener('click', async () => {
           if (this.isListening) {
-            this.recognition.stop();
+            this.stopListening();
             return;
           }
-          this.recognition.lang = this.speechTag();
-          try {
-            this.recognition.start();
-          } catch (err) {
-            console.warn('Could not start recognition:', err);
-            this.refreshVoiceCapabilityHints();
-          }
+          await this.startListening();
         });
-      } catch (err) {
-        this.speechSupported = false;
-        if (this.voiceBtn) this.voiceBtn.hidden = true;
-        this.refreshVoiceCapabilityHints();
+      }
+    }
+
+    async startListening() {
+      const lang = this.uiLangCode();
+
+      if (this.hasMediaRecorder) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          this.audioStream = stream;
+          this.audioChunks = [];
+
+          let mimeType = 'audio/webm';
+          if (typeof MediaRecorder.isTypeSupported === 'function') {
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+              mimeType = 'audio/webm;codecs=opus';
+            } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+              mimeType = 'audio/ogg;codecs=opus';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+              mimeType = 'audio/mp4';
+            }
+          }
+
+          const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+          this.mediaRecorder = recorder;
+
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              this.audioChunks.push(e.data);
+            }
+          };
+
+          recorder.onstart = () => {
+            this.isListening = true;
+            if (this.voiceBtn) {
+              this.voiceBtn.classList.add('listening');
+              this.voiceBtn.setAttribute('aria-pressed', 'true');
+              this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
+            }
+            this.input.placeholder = this.t('listening');
+          };
+
+          recorder.onstop = async () => {
+            if (this.audioStream) {
+              this.audioStream.getTracks().forEach((t) => t.stop());
+              this.audioStream = null;
+            }
+
+            const mime = recorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(this.audioChunks, { type: mime });
+            this.audioChunks = [];
+            this.mediaRecorder = null;
+
+            if (audioBlob.size > 0) {
+              await this.transcribeAudioBlob(audioBlob, lang, mime);
+            }
+          };
+
+          recorder.start();
+          return;
+        } catch (err) {
+          console.warn('getUserMedia/MediaRecorder failed or permission denied, trying SpeechRecognition fallback:', err);
+        }
+      }
+
+      if (this.recognition) {
+        this.recognition.lang = this.speechTag();
+        try {
+          this.recognition.start();
+        } catch (err) {
+          console.warn('Could not start recognition:', err);
+          this.stopListening();
+          this.refreshVoiceCapabilityHints();
+        }
+      } else {
+        this.stopListening();
+        this.voiceNote.hidden = false;
+        this.voiceNote.textContent = this.t('voice_unsupported');
       }
     }
 
@@ -920,7 +1063,48 @@
         this.voiceBtn.setAttribute('aria-label', this.t('voice_aria'));
       }
       this.input.placeholder = this.t('placeholder');
+
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        try {
+          this.mediaRecorder.stop();
+        } catch (_) {}
+      }
+      if (this.recognition) {
+        try {
+          this.recognition.stop();
+        } catch (_) {}
+      }
       this.input.focus();
+    }
+
+    async transcribeAudioBlob(audioBlob, lang, mime) {
+      const origPlaceholder = this.input.placeholder;
+      this.input.placeholder = 'Transcribing...';
+      try {
+        const transcribeUrl = `${this.apiUrl}/voice/transcribe?language=${encodeURIComponent(lang)}`;
+        const res = await fetch(transcribeUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': mime || 'audio/webm',
+          },
+          body: audioBlob,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.text) {
+            const current = this.input.value.trim();
+            this.input.value = current ? `${current} ${data.text}` : data.text;
+            this.input.focus();
+          }
+        } else {
+          console.warn('Voice transcription server response:', res.status);
+        }
+      } catch (err) {
+        console.warn('Voice transcription network error:', err);
+      } finally {
+        this.input.placeholder = origPlaceholder;
+      }
     }
 
     appendMessage(text, sender, lang = 'auto', citations = []) {
@@ -1009,29 +1193,49 @@
         if (!this.hasTtsVoice(bcp)) {
           speakBtn.title = this.t('speak_unsupported');
         }
-        speakBtn.addEventListener('click', () => {
-          if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
-            setSpeaking(false);
+        speakBtn.addEventListener('click', async () => {
+          if (speakBtn.classList.contains('speaking')) {
+            this.stopAllSpeech();
             return;
           }
-          if (!this.hasTtsVoice(bcp) && this.ttsVoices.length) {
-            this.voiceNote.hidden = false;
-            this.voiceNote.textContent = this.t('speak_unsupported');
-            return;
-          }
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = bcp;
-          const voice = this.ttsVoices.find((v) => (v.lang || '').toLowerCase().startsWith(bcp.split('-')[0].toLowerCase()));
-          if (voice) utterance.voice = voice;
-          utterance.onend = () => setSpeaking(false);
-          utterance.onerror = () => {
-            setSpeaking(false);
-            this.voiceNote.hidden = false;
-            this.voiceNote.textContent = this.t('speak_unsupported');
-          };
+
+          this.stopAllSpeech();
+          const langCode = (resolved || 'en').split('-')[0].toLowerCase();
           setSpeaking(true);
-          window.speechSynthesis.speak(utterance);
+          this.activeSpeakButtonReset = () => setSpeaking(false);
+
+          let serverPlayed = false;
+          try {
+            const speakUrl = `${this.apiUrl}/voice/speak?text=${encodeURIComponent(text.slice(0, 1000))}&language=${encodeURIComponent(langCode)}`;
+            const res = await fetch(speakUrl);
+            if (res.ok) {
+              const blob = await res.blob();
+              if (blob && blob.size > 0 && typeof Audio !== 'undefined') {
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio(audioUrl);
+                this.currentAudio = audio;
+                audio.onended = () => {
+                  URL.revokeObjectURL(audioUrl);
+                  setSpeaking(false);
+                  if (this.currentAudio === audio) this.currentAudio = null;
+                  this.activeSpeakButtonReset = null;
+                };
+                audio.onerror = () => {
+                  URL.revokeObjectURL(audioUrl);
+                  this.currentAudio = null;
+                  this.fallbackBrowserSpeech(text, bcp, setSpeaking);
+                };
+                await audio.play();
+                serverPlayed = true;
+              }
+            }
+          } catch (e) {
+            // Server voice unavailable or network error
+          }
+
+          if (!serverPlayed) {
+            this.fallbackBrowserSpeech(text, bcp, setSpeaking);
+          }
         });
         bubble.appendChild(speakBtn);
       }

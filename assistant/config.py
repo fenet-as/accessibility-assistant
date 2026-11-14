@@ -57,6 +57,7 @@ class Settings:
 
     default_scope: str = "course:va-1"
     relevance_threshold: float = 0.35
+    addis_api_key: str = ""
 
 
 def load_settings() -> Settings:
@@ -80,6 +81,7 @@ def load_settings() -> Settings:
         twilio_account_sid=env.get("TWILIO_ACCOUNT_SID", ""),
         twilio_auth_token=env.get("TWILIO_AUTH_TOKEN", ""),
         twilio_phone_number=env.get("TWILIO_PHONE_NUMBER", ""),
+        addis_api_key=env.get("ADDIS_API_KEY", ""),
     )
 
 

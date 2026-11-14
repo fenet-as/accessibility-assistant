@@ -13,6 +13,7 @@ from assistant.domain.ports import AIProvider
 from assistant.infrastructure.chunk_store import ChunkStore
 from assistant.infrastructure.database import Database
 from assistant.infrastructure.providers import build_provider
+from assistant.infrastructure.providers.addis_ai import AddisAIClient
 from assistant.services.analytics import AnalyticsService
 from assistant.services.careers import CareerService
 from assistant.services.course_admin import CourseAdminService
@@ -31,6 +32,7 @@ class Container:
     careers: CareerService
     analytics: AnalyticsService
     courses: CourseAdminService
+    addis_ai: AddisAIClient
 
 
 def build_container(settings: Optional[Settings] = None, provider: Optional[AIProvider] = None) -> Container:
@@ -48,6 +50,7 @@ def build_container(settings: Optional[Settings] = None, provider: Optional[AIPr
         careers=CareerService(db, settings.jobs_path),
         analytics=AnalyticsService(db),
         courses=CourseAdminService(store, tutor),
+        addis_ai=AddisAIClient(settings.addis_api_key),
     )
 
 
