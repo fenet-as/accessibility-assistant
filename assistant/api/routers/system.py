@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from assistant import __version__
 from assistant.api.dependencies import get_container
 from assistant.container import Container
+from assistant.domain.language import AUTO, SUPPORTED_LANGUAGES, UI_STRINGS, language_catalog
 
 PAGES_DIR = Path(__file__).resolve().parent.parent / "pages"
 HOME_PAGE = "/savanna/pages/concept-with-navigation.html"
@@ -26,7 +27,20 @@ def health(container: Container = Depends(get_container)) -> Dict[str, Any]:
         "status": "healthy",
         "provider": container.provider.name,
         "indexed_chunks": container.tutor.indexed_chunks,
+        "kb_version": container.tutor.kb_version,
+        "languages": list(SUPPORTED_LANGUAGES),
         "version": __version__,
+    }
+
+
+@router.get("/api/languages", tags=["System"])
+def languages() -> Dict[str, Any]:
+    """Centralized language configuration for the widget (names, scripts, RTL, speech tags, UI copy)."""
+    return {
+        "default": AUTO,
+        "supported": list(SUPPORTED_LANGUAGES),
+        "languages": language_catalog(),
+        "ui_auto": UI_STRINGS["en"],
     }
 
 

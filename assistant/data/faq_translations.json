@@ -1,10 +1,48 @@
 {
-  "_comment": "Curated Amharic answers for the offline FAQ provider, keyed by a fragment of the cited section anchor. Checked in order; first match wins.",
+  "_comment": "Curated offline answers keyed by a fragment of the cited section anchor. Checked in order; first match wins. Offline mode never invents missing languages.",
   "am": {
+    "curriculum_navigation_content": "የቨርቹዋል ረዳት ሙያ እየቀነሰ ሳይሆን እየተሻሻለ ነው። «ቨርቹዋል ረዳት» ሁለት ትርጉም አለው፤ በአንዳንድ ሪፖርቶች እንደ ቻትቦት፣ የድምፅ ረዳት እና ዲጂታል ወኪሎች ያሉ የAI ሶፍትዌር ረዳቶችን ያመለክታል፤ በሌላ አገባብ ደግሞ በኢንተርኔት የንግድ ድጋፍ የሚሰጡ የሰው የርቀት ባለሙያዎችን ያመለክታል። የወደፊቱ ኢንዱስትሪ ሁለቱንም ያካትታል፤ እየጨመረም አብረው ይሠራሉ።",
+    "up-next": "የVA ኢንዱስትሪ ወዴት እያመራ እንደሆነ ካወቁ በኋላ ቀጣዩ ጥያቄ ግላዊ ነው፤ ቨርቹዋል ረዳት መሆን ለእርስዎ ትክክለኛው መንገድ ሊሆን የሚችለው ለምንድን ነው? በሚቀጥለው ትምህርት የሙያውን ዋጋ ከግል እይታ አንጻር ይመረምራሉ።",
     "shaping-the-future": "የቨርቹዋል ረዳት (VA) ሥራ እየሰፋና እየተቀየረ ነው። ዋና ዋና ለውጦች፡ የርቀት ሥራ መስፋፋት፣ ተለዋዋጭነት ፍላጎት መጨመር፣ የዲጂታል አሠራሮች ማደግ፣ የልዩ ችሎታዎች ፍላጎት፣ እንዲሁም የሰው ሰራሽ አስተዋይነት (AI) አጠቃቀም ናቸው።",
     "artificial-intelligence": "ሰው ሰራሽ አስተዋይነት (AI) በቨርቹዋል ረዳቶች ሥራ ውስጥ ትልቅ ሚና ይጫወታል። AI እንደ ኢሜይል መጻፍ፣ ጽሑፎችን ማጠቃለልና መረጃ መፈለግ ያሉ ስራዎችን ያግዛል። ነገር ግን የሰው ቨርቹዋል ረዳቶች የደንበኛ ግንኙነትን በመምራትና በስሜት ብስለት እጅግ አስፈላጊ ሆነው ይቀጥላሉ።",
     "what-clients-are-likely-to-value": "ደንበኞች ወደፊት ይበልጥ ዋጋ የሚሰጧቸው ክህሎቶች፡ የAI ቴክኖሎጂን በአግባቡ የመጠቀም ችሎታ፣ በተመረጡ ዘርፎች ልዩ እውቀት ማዳበር፣ እና ጥራት ያለው የሰው አገልግሎት (ታማኝነት፣ ግልጽ ግንኙነት) ናቸው።",
     "what-this-means-for-aspiring": "ለጀማሪ ቨርቹዋል ረዳቶች፡ አዳዲስ ዲጂታል መሣሪያዎችን ለመማር ዝግጁ መሆን፣ AIን እንደ አጋዥ መጠቀም፣ ጠንካራ የግንኙነት ክህሎት ማዳበር፣ እና በጊዜ ሂደት የተለየ ሙያዊ ዘርፍ ላይ ማተኮር ይመረጣል።",
     "promising": "አዎ፣ የቨርቹዋል ረዳት ሙያ ተስፋ አለው። ተለዋዋጭ፣ ቴክኖሎጂን የሚረዱ እና የተደራጁ የሰው ባለሙያዎች በገበያው ውስጥ ከፍተኛ ዋጋ አላቸው።"
+  },
+  "ti": {
+    "curriculum_navigation_content": "ስራሕ ሓጋዚ ቨርቹዋል ኣይውሒዱን፣ ይማዕበል እዩ። «ቨርቹዋል ሓጋዚ» ክልተ ትርጉም ኣለዎ፤ ብገለ ጸብጻባት ናይ AI ሶፍትዌር ሓገዝቲ (ቻትቦት፣ ድምጺ ሓጋዚ) ማለት እዩ፤ ብኻልእ ኣገባብ ድማ ብኢንተርኔት ንግዳዊ ደገፍ ዝህቡ ሰባት ማለት እዩ። መጻኢ ኢንዱስትሪ ክልቲኡ የጠቓልል።",
+    "shaping-the-future": "ስራሕ ቨርቹዋል ሓጋዚ ይሰፍሕን ይቕየርን ኣሎ። ቀንዲ ለውጥታት፡ ርሑቕ ስራሕ፣ ተለዋዋጢነት፣ ዲጂታል ኣሰራርሓ፣ ፍሉይ ክእለትን ሰብ ሰራሽ ኣእምሮ (AI)ን እዮም።",
+    "artificial-intelligence": "ሰብ ሰራሽ ኣእምሮ (AI) ኣብ ስራሕ ቨርቹዋል ሓገዝቲ ዓቢ ተራ ኣለዎ። AI ኢመይል ምጽሓፍ፣ ጽሑፍ ምጽማቕን ሓበሬታ ምድላይን ይሕግዝ። ሰብኣዊ ቨርቹዋል ሓገዝቲ ግን ኣብ ዝምድና ደንበኛን ስምዒታዊ ብስለትን ኣገዳሲ ኮይኖም ይቕጽሉ።",
+    "what-clients-are-likely-to-value": "ደንበኛታት ኣብ መጻኢ ዝያዳ ዝኣምንዎም ክእለታት፡ AI ብግቡእ ምጥቃም፣ ፍሉይ ሞያዊ ፍልጠትን ጽሬት ዘለዎ ሰብኣዊ ኣገልግሎትን እዮም።",
+    "what-this-means-for-aspiring": "ንጀማርቲ ቨርቹዋል ሓገዝቲ፡ ሓደስቲ ዲጂታል መሳርሒታት ምምሃር፣ AI ከም ሓጋዚ ምጥቃም፣ ጽኑዕ ክእለት ርክብ ምዕባይን ብጊዜ ፍሉይ ሞያ ምምራጽን ይምከር።",
+    "promising": "እወ፣ ሞያ ቨርቹዋል ሓጋዚ ተስፋ ኣለዎ። ተለዋዋጢ፣ ቴክኖሎጂ ዝርድኡን ዝተደራጁ ሰባት ኣብ ዕዳጋ ከቢድ ዋጋ ኣለዎም።",
+    "up-next": "ናይ VA ኢንዱስትሪ ናበይ ከም ዝኸይድ ምስ ተረድኡ፣ ዝቕጽል ሕቶ ውልቃዊ እዩ፤ ቨርቹዋል ሓጋዚ ምዃን ንዓኹም ቅኑዕ መንገዲ ድዩ? ኣብ ዝቕጽል ትምህርቲ እቲ ዋጋ ብውልቃዊ ኣረኣእያ ክትርእዩ ኢኹም።"
+  },
+  "om": {
+    "curriculum_navigation_content": "Hojii gargaaraa virtualii hin hir'atu; ni guddata. «Gargaaraa virtualii» hiika lama qaba: gabaasa tokko tokkotti gargaaroota softweerii AI (chatbot, gargaaraa sagalee) jechuudha; haala biraa keessatti ogummaa fageenyaa kan deeggarsa daldalaa interneetiin kennaan jechuudha. Industirii fuulduraa lamaan isaanii of keessaa qabdi.",
+    "shaping-the-future": "Hojii gargaaraa virtualii (VA) ni bal'ataa fi jijjiiramaa jira. Jijjiiramoonni gurguddoon: hojii fageenyaa, jijjiiramummaa, adeemsa dijitaalaa, dandeettii addaa fi fayyadama sammuu nam-tolchee (AI) dha.",
+    "artificial-intelligence": "Sammuun nam-tolchee (AI) hojii gargaaroota virtualii keessatti gahee guddaa qaba. AI email barreessuu, barreeffama cuunfuu fi odeeffannoo barbaaduuf gargaara. Gargaaroonni virtualii namoota ta'an ammoo hariiroo maamiltootaa fi dandeettii miiraa keessatti hedduu barbaachisoo ta'anii itti fufu.",
+    "what-clients-are-likely-to-value": "Maamiltoonni fuulduratti dandeettiilee akkanaatti gatii guddaa kennu: AI sirriitti fayyadamuu, ogummaa addaa guddifachuu, fi tajaajila namaa qulqullina qabu (amanamummaa, quunnamtii ifaa).",
+    "what-this-means-for-aspiring": "Gargaaroota virtualii haaraaf: meeshaalee dijitaalaa haaraa barachuuf qophaa'uu, AI akka gargaaraatti fayyadamuu, dandeettii quunnamtii cimsachuu, fi yeroo keessatti ogummaa addaa filachuun ni gorfama.",
+    "promising": "Eeyyee, ogummaan gargaaraa virtualii abdii qaba. Namoonni jijjiiramoo, teeknoloojii hubatanii fi qindaa'an gabaa keessatti gatii guddaa qabu.",
+    "up-next": "Industiriin VA eessa akka deemaa jiru erga barattan booda, gaaffiin itti aanu dhuunfaa dha: gargaaraa virtualii ta'uun karaa sirrii keessanii ta'uu danda'aa? Barnoota itti aanutti gatii ogummaa kanaa ilaalcha dhuunfaatiin ni qorattu."
+  },
+  "so": {
+    "curriculum_navigation_content": "Shaqada kaaliyaha virtual ma yaraayso; way kobcaysaa. «Kaaliye virtual» wuxuu leeyahay laba macne: warbixinno qaarkood waxay ula jeedaan kaaliyayaasha softiweerka AI (chatbot, kaaliye cod); macnaha kale waa xirfadlayaal fog oo deegaan ganacsi ah oo internetka ku shaqeeya. Mustaqbalka warshaddu labadaba wuu ka kooban yahay.",
+    "shaping-the-future": "Shaqada kaaliyaha virtual (VA) way ballaadhanaysaa oo way isbeddelaysaa. Isbeddellada waaweyn waa: shaqada fog, dabacsanaanta, howlaha dijitaalka, xirfadaha gaarka ah, iyo isticmaalka sirdoonka macmal ah (AI).",
+    "artificial-intelligence": "Sirdoonka macmal ah (AI) door weyn ayuu ka ciyaaraa shaqada kaaliyayaasha virtual. AI waxuu caawiyaa qorista iimaylka, soo koobidda qoraallada iyo raadinta macluumaadka. Laakiin kaaliyayaasha virtual ee bini'aadamka ayaa weli muhiim u ah xiriirka macaamiisha iyo garashada dareenka.",
+    "what-clients-are-likely-to-value": "Macaamiishu mustaqbalka waxay qiimeyn doonaan: awoodda in si sax ah loo isticmaalo AI, horumarinta khibrad gaar ah, iyo adeeg bini'aadam oo tayo leh (amaan, xiriir cad).",
+    "what-this-means-for-aspiring": "Kaaliyayaasha virtual ee bilowga ah: diyaar u noqo inaad barato qalabka dijitaalka ee cusub, u isticmaal AI sidii caawimaad, xooji xirfadaha xiriirka, oo waqti ka dib dooro xirfad gaar ah.",
+    "promising": "Haa, xirfadda kaaliyaha virtual rajada way leedahay. Dadka dabacsada, teknoolojiyadda fahma ee habaysan ayaa suuqa qiimo weyn ku leh.",
+    "up-next": "Markaad fahanto halka warshadda VA u socoto, su'aasha xigta waa mid shakhsi ah: maxay noqon kartaa inaad noqoto kaaliye virtual jidkaaga saxda ah? Casharka xiga waxaad ka sahamin doontaa qiimaha doorka aragtida shakhsi ahaaneed."
+  },
+  "ar": {
+    "curriculum_navigation_content": "مهنة المساعد الافتراضي لا تتقلّص؛ إنها تتطوّر. لمصطلح «مساعد افتراضي» معنيان: في بعض التقارير يقصد به مساعدو برمجيات الذكاء الاصطناعي (روبوتات الدردشة والمساعدات الصوتية)، وفي سياقات أخرى يقصد به محترفون بشريون عن بُعد يقدّمون دعمًا للأعمال عبر الإنترنت. مستقبل القطاع يشمل الاثنين معًا.",
+    "shaping-the-future": "يتّسع عمل المساعد الافتراضي ويتغيّر. أبرز التحوّلات: انتشار العمل عن بُعد، والطلب على المرونة، ونمو العمليات الرقمية، والحاجة إلى مهارات متخصصة، واستخدام الذكاء الاصطناعي.",
+    "artificial-intelligence": "يلعب الذكاء الاصطناعي دورًا مهمًا في عمل المساعدين الافتراضيين. يساعد في صياغة الرسائل وتلخيص النصوص والبحث عن المعلومات. ومع ذلك يبقى المساعدون البشريون أساسيين في إدارة علاقات العملاء والنضج العاطفي.",
+    "what-clients-are-likely-to-value": "سيقدّر العملاء أكثر فأكثر: إجادة استخدام أدوات الذكاء الاصطناعي بمسؤولية، وتطوير خبرة متخصصة، وتقديم خدمة إنسانية عالية الجودة (الموثوقية والتواصل الواضح).",
+    "what-this-means-for-aspiring": "للمساعدين الافتراضيين المبتدئين: الاستعداد لتعلّم أدوات رقمية جديدة، واستخدام الذكاء الاصطناعي كداعم لا كبديل عن الجودة، وتقوية مهارات التواصل، والتركيز تدريجيًا على تخصّص مهني.",
+    "promising": "نعم، مهنة المساعد الافتراضي واعدة. المهنيون المرنون والمتقنون للتقنية والمنظّمون يحتفظون بقيمة عالية في السوق.",
+    "up-next": "بعد أن استكشفتَ اتجاه صناعة المساعد الافتراضي، يصبح السؤال التالي شخصيًا: لماذا قد يكون أن تصبح مساعدًا افتراضيًا المسار المناسب لك؟ في الدرس التالي ستستكشف قيمة الدور من منظور شخصي."
   }
 }

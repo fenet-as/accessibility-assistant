@@ -4,18 +4,20 @@ Run `python -m assistant.ingest` to rebuild `assistant/data/chunks.json` from th
 bundled concept page.
 """
 
+import json
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
 from assistant.infrastructure.chunk_store import Chunk
-from assistant.ingest.parsers import INTRO_SECTION
+from assistant.ingest.parsers import INTRO_SECTION, chunk_id, lesson_id_from_url, prepare_chunks
 
 COURSE_NAME = "VA-1: VA Foundations & Professional Identity"
 COURSE_SCOPE = "course:va-1"
 PAGE_URL = "/pages/concept-with-navigation.html"
+LESSON_ID = lesson_id_from_url(PAGE_URL)
 CONTENT_ROOT_ID = "curriculum_navigation_content"
 SKIPPED_PREFIXES = ("VA-Content-Banner", "Evon afro")
 
@@ -48,37 +50,74 @@ SECTION_KEYWORDS: Dict[str, Tuple[str, str]] = {
     ),
 }
 
+# Section anchor fragment -> phrases learners use for the same idea.
+SECTION_SYNONYMS: Dict[str, List[str]] = {
+    "artificial-intelligence": ["machine learning", "chatgpt", "automation tools", "robots replacing jobs"],
+    "shaping-the-future": ["trends", "industry changes", "work from home"],
+    "what-clients-are-likely-to-value": ["employer expectations", "what customers want", "in-demand skills"],
+    "what-this-means-for-aspiring": ["beginners", "getting started", "new virtual assistants"],
+    "promising": ["job outlook", "is it worth it", "career prospects"],
+}
+
 
 def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _lookup(table: Dict[str, object], anchor_id: str):
+    return next((value for fragment, value in table.items() if fragment in anchor_id), None)
+
+
 def _section_keywords(anchor_id: str, section_title: str) -> Tuple[str, str]:
-    for fragment, (extra_en, keywords_am) in SECTION_KEYWORDS.items():
-        if fragment in anchor_id:
-            return f"{section_title.lower()} {extra_en}", keywords_am
+    match = _lookup(SECTION_KEYWORDS, anchor_id)
+    if match:
+        extra_en, keywords_am = match
+        return f"{section_title.lower()} {extra_en}", keywords_am
     return section_title.lower(), ""
 
 
-def _chunk(chunk_id: str, title: str, section: str, anchor_id: str, text: str,
-           keywords: Tuple[str, str]) -> Chunk:
+def load_curated_translations(path: Optional[Path]) -> Dict[str, Dict[str, str]]:
+    """All curated offline translations keyed by language, then by anchor fragment."""
+    if not path or not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {lang: answers for lang, answers in data.items() if not lang.startswith("_")}
+
+
+def _translations_for_anchor(catalog: Dict[str, Dict[str, str]], anchor_id: str) -> Dict[str, str]:
+    if not anchor_id:
+        return {}
+    found = {}
+    for lang, answers in catalog.items():
+        match = _lookup(answers, anchor_id)
+        if match:
+            found[lang] = match
+    return found
+
+
+def _chunk(title: str, section: str, anchor_id: str, text: str, keywords: Tuple[str, str],
+           catalog: Dict[str, Dict[str, str]]) -> Chunk:
     anchor = f"#{anchor_id}" if anchor_id else ""
     return {
-        "id": chunk_id,
+        "id": chunk_id(COURSE_SCOPE, LESSON_ID, anchor_id or "top"),
         "course": COURSE_NAME,
         "scope": COURSE_SCOPE,
+        "lesson_id": LESSON_ID,
         "title": title,
         "section": section,
         "anchor": anchor,
         "url": f"{PAGE_URL}{anchor}",
         "language": "en",
         "text": text,
+        "translations": _translations_for_anchor(catalog, anchor_id),
         "keywords_am": keywords[1],
         "keywords_en": keywords[0],
+        "synonyms": (_lookup(SECTION_SYNONYMS, anchor_id) or []) if anchor_id else [],
     }
 
 
-def parse_concept_page(html: str) -> List[Chunk]:
+def parse_concept_page(html: str, catalog: Optional[Dict[str, Dict[str, str]]] = None) -> List[Chunk]:
+    catalog = catalog or {}
     soup = BeautifulSoup(html, "html.parser")
     root = soup.find(id=CONTENT_ROOT_ID)
     if not root:
@@ -99,8 +138,8 @@ def parse_concept_page(html: str) -> List[Chunk]:
             if text and not text.startswith(SKIPPED_PREFIXES):
                 intro.append(text)
     if intro:
-        chunks.append(_chunk("va-intro-1", concept_title, INTRO_SECTION, CONTENT_ROOT_ID,
-                             " ".join(intro), INTRO_KEYWORDS))
+        chunks.append(_chunk(concept_title, INTRO_SECTION, CONTENT_ROOT_ID, " ".join(intro),
+                             INTRO_KEYWORDS, catalog))
 
     for h4 in body.find_all("h4"):
         section_title = _clean(h4.get_text())
@@ -119,12 +158,12 @@ def parse_concept_page(html: str) -> List[Chunk]:
             sibling = sibling.next_sibling
 
         if texts:
-            chunks.append(_chunk(f"va-section-{len(chunks) + 1}", concept_title, section_title,
-                                 anchor_id, " ".join(texts), _section_keywords(anchor_id, section_title)))
-    return chunks
+            chunks.append(_chunk(concept_title, section_title, anchor_id, " ".join(texts),
+                                 _section_keywords(anchor_id, section_title), catalog))
+    return prepare_chunks(chunks)
 
 
-def parse_concept_file(path: Path) -> List[Chunk]:
+def parse_concept_file(path: Path, translations_path: Optional[Path] = None) -> List[Chunk]:
     if not path.exists():
         raise FileNotFoundError(f"Source file not found: {path}")
-    return parse_concept_page(path.read_text(encoding="utf-8"))
+    return parse_concept_page(path.read_text(encoding="utf-8"), load_curated_translations(translations_path))

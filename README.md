@@ -99,7 +99,30 @@ accessibility-assistant/
 
 - **Several workers, one source of truth.** Run `WEB_CONCURRENCY` uvicorn workers. When a course is ingested, every worker notices that `chunks.json` changed and rebuilds its index on its next request. Writes are atomic, so no worker ever reads a half-written file.
 - **Fast retrieval.** The BM25 index is an inverted index built once per corpus version, so a query only touches documents that contain its terms. The index is replaced in one step, never edited in place.
-- **Answer cache.** Learners in one cohort ask the same questions. An LRU cache (`ANSWER_CACHE_SIZE`), keyed by course, language, mode and question, skips retrieval and the AI call. It is cleared when the corpus changes.
+- **No answer cache (for now).** Every answer is retrieved and generated fresh, so it always reflects the current knowledge base. A cache keyed by `kb_version` can be added once retrieval quality is settled.
+
+### Offline-first chatbot
+
+- **Service Worker** (`/widget/sw.js`) caches the widget shell, `assistant.js`, `offline.js`, fonts/UI assets and course packs. Chat and escalate stay network-only.
+- **Course packs** (`GET /api/offline/pack?scope=…`) ship chunks, the same BM25 index the server uses, languages, UI strings and system messages. `kb_version` / pack format drive cache invalidation (`GET /api/offline/pack/meta`).
+- **IndexedDB** (via `offline.js`) stores packs, conversation history, unanswered questions and pending sync items with dedupe keys.
+- **Offline answers** are extractive/local only — never cloud AI. Unknown questions return `not_found` and can be queued; syncing queued personal questions requires explicit consent on reconnect.
+- **UI** shows Online / Offline / Synchronizing, Local answer vs Cloud answer badges, and Download for offline (with quota errors handled).
+
+### Multilingual engine (en, am, ti, om, so, ar)
+
+- **One config** in `assistant/domain/language.py`: names, scripts (Ethiopic / Latin / Arabic), direction, speech tags, marker words and UI copy. Exposed as `GET /api/languages`.
+- **Detection with confidence** mixes script ratios and distinctive words (so Amharic vs Tigrinya, or English vs Oromo/Somali, are not decided by Unicode alone). The widget language picker overrides detection and is sent as `language` on `/api/chat`.
+- **Widget** localizes launcher, placeholders, buttons, loading and errors; sets `dir="rtl"` for Arabic; loads `Noto Sans Ethiopic` and `Noto Sans Arabic`. Voice input and read-aloud check browser support and show a note when a language has no speech service; typing always remains available.
+- **Offline answers** use curated translations in `faq_translations.json` / chunk `translations`. Missing translations are never invented: the original course text is shown with a clear notice. Cloud translation APIs are not called in offline (`faq`) mode.
+
+### Knowledge base and retrieval
+
+- **Schema v2** (`assistant/domain/knowledge.py`). Each chunk is one section of one lesson of one course: `scope` (course id), `course`, `lesson_id`, `title` (lesson), `section`, `anchor`, `url`, `language`, `text`, `translations` (`{"am": ...}`), `keywords_en`/`keywords_am`, `synonyms`, `content_hash` and `revision`. The file also records `kb_version`, a hash of every chunk, shown in `/api/health`. Old list-format files still load.
+- **Ingestion** validates every chunk before anything is indexed (a 400 lists all problems), drops sections that repeat earlier content, keeps anchors unique (`#topic`, `#topic-2`) and uses stable ids (`course--lesson--anchor`). Re-sending a lesson only rewrites what changed, bumps `revision` on edited sections and leaves other lessons and courses alone. `DELETE /api/admin/courses/{course}/lessons/{lesson}` removes one lesson.
+- **Ranking** keeps BM25 and adds coverage, section/lesson title, keyword and synonym, and exact-phrase signals. Course and lesson filters (`scope`, optional `lesson` in `/api/chat`) choose candidates before scoring. Amharic text keeps every Ethiopic letter, splits on Ethiopic punctuation, merges homophone letters (ሥ/ስ, ሐ/ኀ/ሀ, ዐ/አ, ፀ/ጸ) and strips common prefixes and suffixes.
+- **Confidence.** At 0.6 or above the assistant answers. Between 0.35 and 0.6 it widens retrieval and answers only if several sections together cover the question; otherwise it returns `needs_clarification` with suggested sections. Below 0.35 it returns `not_found` and offers a human tutor. Only the selected passages (at most 3) reach the AI provider, and only the sections actually used are cited.
+- **Evaluation.** `python -m evaluation.run` compares the previous engine with the current one on `evaluation/dataset.json` and writes [`evaluation/REPORT.md`](evaluation/REPORT.md). `tests/test_retrieval_evaluation.py` fails if quality drops.
 - **Non-blocking analytics.** Web chat logs happen in a background task after the response is sent. SQLite runs in WAL mode with a busy timeout, so readers never block the writer.
 - **3G-friendly.** GZip on JSON and on the widget script.
 - **Next steps beyond one host:** replace `infrastructure/database.py` with Postgres (same method names), move `chunks.json` to object storage or a database, put a CDN in front of `/widget`, and add per-session rate limiting at the reverse proxy.

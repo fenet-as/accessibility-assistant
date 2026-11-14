@@ -7,5 +7,6 @@ venv/
 **/*.pyc
 .pytest_cache/
 tests/
+evaluation/
 docs/
 assistant/data/*.db*
