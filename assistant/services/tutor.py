@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from assistant.domain.knowledge import compute_kb_version
 from assistant.domain.language import detect_language_with_confidence
-from assistant.domain.messages import clarification_response, not_found_response
+from assistant.domain.messages import clarification_response, not_found_response, detect_social_response
 from assistant.domain.models import ChatRequest, ChatResponse, ChatStatus, ConversationTurn, Passage
 from assistant.domain.ports import AIProvider
 from assistant.infrastructure.chunk_store import ChunkStore
@@ -78,6 +78,11 @@ class TutorService:
         # Manual UI override wins; otherwise script + marker-word detection picks the language.
         detection = detect_language_with_confidence(request.message, request.language)
         language = detection.code
+
+        # Short-circuit: greetings, farewells, and thanks don't need course retrieval.
+        social = detect_social_response(request.message, language)
+        if social is not None:
+            return self._attach_language(social, detection)
 
         history: List[ConversationTurn] = list(request.history)
 
