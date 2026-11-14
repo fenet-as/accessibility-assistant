@@ -52,11 +52,18 @@ class IngestRequest(BaseModel):
     lesson_url: str = Field(default="/pages/lesson.html", description="Lesson URL on the LMS")
     content_type: str = Field(default="markdown", description="'markdown' or 'html'")
     content: str = Field(..., description="Raw lesson text in Markdown or HTML")
+    lesson_id: Optional[str] = Field(default=None, description="Lesson id; defaults to the lesson URL file name")
+    lesson_title: Optional[str] = Field(default=None, description="Lesson title; defaults to the course title")
 
 
 class IngestResponse(BaseModel):
     status: str
     course_id: str
-    chunks_created: int
+    lesson_id: str
+    chunks_created: int = Field(..., description="New sections added")
+    chunks_updated: int
+    chunks_unchanged: int
+    chunks_removed: int
+    kb_version: str
     sections: List[str]
     sample_url: str

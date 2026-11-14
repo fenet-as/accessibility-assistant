@@ -23,9 +23,6 @@ UNICODE_LIMIT = 70
 
 MENU_EN = "ALX Assistant: Reply with your question, or:\n1: Jobs\n2: Human Tutor\n3: Amharic (አማርኛ)"
 MENU_AM = "ALX ረዳት፡ ጥያቄዎን በአማርኛ ይጻፉ ወይም:\n1: ክፍት የሥራ ቦታዎች\n2: የቀጥታ መምህር እርዳታ"
-NOT_FOUND_EN = "Not found in course text. Reply 2 to connect with a human tutor."
-NOT_FOUND_AM = "ይቅርታ፣ ይህ ጥያቄ በትምህርቱ ውስጥ አልተገኘም። ለሰው ረዳት 2 ብለው ይመልሱ።"
-
 HELP_COMMANDS = {"HELP", "INFO"}
 AMHARIC_COMMANDS = {"3", "AMHARIC", "አማርኛ"}
 JOBS_COMMANDS = {"1", "JOBS", "JOB", "ሥራ", "ስራ"}
@@ -200,7 +197,8 @@ class SMSAdapter:
             response = self.container.tutor.answer(request)
             self.container.analytics.record_question(request, response)
             if response.status == ChatStatus.NOT_FOUND:
-                reply = NOT_FOUND_AM if response.language == "am" else NOT_FOUND_EN
+                from assistant.domain.messages import NOT_FOUND, localized
+                reply = localized(NOT_FOUND, response.language)
             else:
                 reference = f" (Ref: {response.citations[0].section})" if response.citations else ""
                 reply = f"{response.answer}{reference}"

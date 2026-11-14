@@ -1,10 +1,16 @@
-"""Turn lesson content (Markdown or generic HTML) into cited chunks, one per heading."""
+"""Turn lesson content (Markdown or generic HTML) into cited chunks, one per heading.
+
+Chunk ids are deterministic (`<course>--<lesson>--<anchor>`), so re-ingesting a lesson
+updates the same records instead of piling up duplicates.
+"""
 
 import re
-from typing import List, Optional, Tuple
+from pathlib import PurePosixPath
+from typing import Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
+from assistant.domain.knowledge import content_hash, slugify
 from assistant.infrastructure.chunk_store import Chunk
 
 INTRO_SECTION = "Introduction & Overview"
@@ -24,12 +30,6 @@ AMHARIC_CONCEPTS: List[Tuple[Tuple[str, ...], str]] = [
 ]
 
 
-def slugify(text: str) -> str:
-    """Convert a section title into a URL-safe HTML anchor slug."""
-    text = re.sub(r"[^\w\s-]", "", text.lower().strip())
-    return re.sub(r"[\s_-]+", "-", text).strip("-")
-
-
 def extract_keywords(text: str, title: str) -> Tuple[str, str]:
     """Return (English keywords, Amharic concept tags) for retrieval."""
     combined = f"{title} {text}".lower()
@@ -39,39 +39,75 @@ def extract_keywords(text: str, title: str) -> Tuple[str, str]:
     return keywords_en, keywords_am
 
 
-def _normalize_url(lesson_url: str) -> str:
-    return lesson_url if lesson_url.startswith("/") else f"/{lesson_url}"
+def normalize_url(lesson_url: str) -> str:
+    return lesson_url if lesson_url.startswith(("/", "http://", "https://")) else f"/{lesson_url}"
 
 
-def _course_prefix(course_id: str) -> str:
+def lesson_id_from_url(lesson_url: str) -> str:
+    stem = PurePosixPath(lesson_url.split("#")[0].split("?")[0]).stem
+    return slugify(stem) or "lesson"
+
+
+def course_slug(course_id: str) -> str:
     return slugify(course_id.replace("course:", "")) or "course"
 
 
+def chunk_id(course_id: str, lesson_id: str, anchor: str) -> str:
+    return f"{course_slug(course_id)}--{lesson_id}--{anchor.lstrip('#') or 'top'}"
+
+
 def build_chunk(
-    index: int,
     course_id: str,
     course_title: str,
+    lesson_id: str,
+    lesson_title: str,
     section: str,
     body: str,
     lesson_url: str,
     anchor: Optional[str] = None,
     keyword_title: Optional[str] = None,
+    translations: Optional[Dict[str, str]] = None,
 ) -> Chunk:
     anchor = anchor or slugify(section)
     keywords_en, keywords_am = extract_keywords(body, keyword_title or section)
     return {
-        "id": f"{_course_prefix(course_id)}-chunk-{index}",
+        "id": chunk_id(course_id, lesson_id, anchor),
         "course": course_title,
         "scope": course_id,
-        "title": course_title,
+        "lesson_id": lesson_id,
+        "title": lesson_title,
         "section": section,
         "anchor": f"#{anchor}",
-        "url": f"{_normalize_url(lesson_url)}#{anchor}",
+        "url": f"{normalize_url(lesson_url)}#{anchor}",
         "language": "en",
         "text": body,
+        "translations": translations or {},
         "keywords_am": keywords_am,
         "keywords_en": keywords_en,
+        "synonyms": [],
     }
+
+
+def prepare_chunks(chunks: List[Chunk]) -> List[Chunk]:
+    """Drop sections whose body repeats an earlier one (even under another heading) and keep anchors unique."""
+    seen_bodies, seen_anchors, prepared = set(), {}, []
+    for chunk in chunks:
+        body = content_hash("", chunk["text"], chunk.get("translations", {}))
+        if body in seen_bodies:
+            continue
+        seen_bodies.add(body)
+        digest = content_hash(chunk["section"], chunk["text"], chunk.get("translations", {}))
+
+        anchor = chunk["anchor"]
+        if anchor:
+            count = seen_anchors.get(anchor, 0) + 1
+            seen_anchors[anchor] = count
+            if count > 1:
+                anchor = f"{anchor}-{count}"
+                chunk = {**chunk, "anchor": anchor, "url": f"{chunk['url'].split('#')[0]}{anchor}",
+                         "id": chunk_id(chunk["scope"], chunk["lesson_id"], anchor)}
+        prepared.append({**chunk, "content_hash": digest})
+    return prepared
 
 
 def parse_markdown(
@@ -79,7 +115,10 @@ def parse_markdown(
     course_id: str,
     course_title: str,
     lesson_url: str = "/pages/lesson.html",
+    lesson_id: Optional[str] = None,
+    lesson_title: Optional[str] = None,
 ) -> List[Chunk]:
+    lesson_id = lesson_id or lesson_id_from_url(lesson_url)
     sections: List[Tuple[str, List[str]]] = [(INTRO_SECTION, [])]
     for line in content.strip().splitlines():
         line = line.strip()
@@ -89,12 +128,12 @@ def parse_markdown(
         elif line:
             sections[-1][1].append(line)
 
-    chunks: List[Chunk] = []
-    for section, lines in sections:
-        body = " ".join(lines).strip()
-        if body:
-            chunks.append(build_chunk(len(chunks) + 1, course_id, course_title, section, body, lesson_url))
-    return chunks
+    chunks = [
+        build_chunk(course_id, course_title, lesson_id, lesson_title or course_title, section,
+                    " ".join(lines).strip(), lesson_url)
+        for section, lines in sections if " ".join(lines).strip()
+    ]
+    return prepare_chunks(chunks)
 
 
 def parse_html(
@@ -102,7 +141,11 @@ def parse_html(
     course_id: str,
     course_title: str,
     lesson_url: str = "/pages/lesson.html",
+    lesson_id: Optional[str] = None,
+    lesson_title: Optional[str] = None,
 ) -> List[Chunk]:
+    lesson_id = lesson_id or lesson_id_from_url(lesson_url)
+    lesson_title = lesson_title or course_title
     soup = BeautifulSoup(content, "html.parser")
     headings = soup.find_all(HEADING_TAGS)
 
@@ -110,8 +153,8 @@ def parse_html(
         body = " ".join(soup.stripped_strings)
         if not body:
             return []
-        return [build_chunk(1, course_id, course_title, INTRO_SECTION, body, lesson_url,
-                            anchor="introduction", keyword_title=course_title)]
+        return prepare_chunks([build_chunk(course_id, course_title, lesson_id, lesson_title, INTRO_SECTION,
+                                           body, lesson_url, anchor="introduction", keyword_title=course_title)])
 
     chunks: List[Chunk] = []
     for heading in headings:
@@ -127,8 +170,6 @@ def parse_html(
         body = " ".join(texts).strip()
         if body:
             section = heading.get_text().strip()
-            chunks.append(build_chunk(
-                len(chunks) + 1, course_id, course_title, section, body, lesson_url,
-                anchor=heading.get("id") or slugify(section),
-            ))
-    return chunks
+            chunks.append(build_chunk(course_id, course_title, lesson_id, lesson_title, section, body,
+                                      lesson_url, anchor=heading.get("id") or slugify(section)))
+    return prepare_chunks(chunks)

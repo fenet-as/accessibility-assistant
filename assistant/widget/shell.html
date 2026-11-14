@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1062fe" />
+  <title>ALX Learning Assistant (Offline)</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Ethiopic", "Noto Sans Arabic", sans-serif;
+      background: linear-gradient(160deg, #e8eef9 0%, #f7fafc 55%, #ffffff 100%);
+      color: #161616;
+    }
+    main {
+      max-width: 40rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 6rem;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
+    p { line-height: 1.5; color: #525252; }
+    .note {
+      margin-top: 1.5rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ALX Learning Assistant</h1>
+    <p>This shell opens the chatbot from the cached widget assets when you are offline. Download a course pack once while online to answer questions from local course content.</p>
+    <div class="note">Offline answers search downloaded course material only. Cloud AI generation is not available offline.</div>
+  </main>
+  <script src="./offline.js"></script>
+  <script src="./assistant.js" data-api="/api" data-scope="course:va-1"></script>
+</body>
+</html>

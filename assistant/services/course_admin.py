@@ -1,9 +1,9 @@
-"""Course management: ingest lesson content into the chunk store, list and delete courses."""
+"""Course management: ingest lessons incrementally into the chunk store, list and delete content."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from assistant.infrastructure.chunk_store import Chunk, ChunkStore
-from assistant.ingest.parsers import parse_html, parse_markdown
+from assistant.infrastructure.chunk_store import ChunkStore, UpsertResult
+from assistant.ingest.parsers import lesson_id_from_url, parse_html, parse_markdown
 from assistant.services.tutor import TutorService
 
 
@@ -19,14 +19,21 @@ class CourseAdminService:
         content: str,
         content_type: str = "markdown",
         lesson_url: str = "/pages/lesson.html",
-    ) -> List[Chunk]:
+        lesson_id: Optional[str] = None,
+        lesson_title: Optional[str] = None,
+    ) -> UpsertResult:
+        """Add or update one lesson; other lessons of the course and other courses are untouched.
+
+        Raises ValueError (listing every problem) if the content is empty or invalid; nothing is indexed then.
+        """
+        lesson_id = lesson_id or lesson_id_from_url(lesson_url)
         parse = parse_html if content_type.lower() == "html" else parse_markdown
-        chunks = parse(content, course_id, course_title, lesson_url)
+        chunks = parse(content, course_id, course_title, lesson_url, lesson_id, lesson_title)
         if not chunks:
             raise ValueError("No valid sections or text could be extracted from the content.")
-        self.store.replace_course(course_id, chunks)
+        result = self.store.upsert_lesson(course_id, lesson_id, chunks)
         self.tutor.reload()
-        return chunks
+        return result
 
     def delete(self, course_id: str) -> bool:
         deleted = self.store.delete_course(course_id)
@@ -34,19 +41,26 @@ class CourseAdminService:
             self.tutor.reload()
         return deleted
 
+    def delete_lesson(self, course_id: str, lesson_id: str) -> bool:
+        deleted = self.store.delete_lesson(course_id, lesson_id)
+        if deleted:
+            self.tutor.reload()
+        return deleted
+
     def list_courses(self) -> List[Dict[str, Any]]:
         courses: Dict[str, Dict[str, Any]] = {}
         for chunk in self.store.load():
-            course_id = chunk.get("scope") or chunk.get("course", "unknown")
-            course = courses.setdefault(course_id, {
-                "course_id": course_id,
-                "course_title": chunk.get("course") or chunk.get("title", course_id),
+            course = courses.setdefault(chunk["scope"], {
+                "course_id": chunk["scope"],
+                "course_title": chunk["course"],
                 "chunk_count": 0,
+                "lessons": [],
                 "sections": [],
-                "sample_url": chunk.get("url", ""),
+                "sample_url": chunk["url"],
             })
             course["chunk_count"] += 1
-            section = chunk.get("section")
-            if section and section not in course["sections"]:
-                course["sections"].append(section)
+            if chunk["lesson_id"] not in course["lessons"]:
+                course["lessons"].append(chunk["lesson_id"])
+            if chunk["section"] not in course["sections"]:
+                course["sections"].append(chunk["section"])
         return list(courses.values())

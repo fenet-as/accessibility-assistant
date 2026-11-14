@@ -1,4 +1,4 @@
-"""Grounded answers, citations, the rejection rule, and the answer cache."""
+"""Grounded answers, citations, the rejection rule, and cross-worker index reloads."""
 
 from dataclasses import replace
 
@@ -82,13 +82,13 @@ class CountingProvider(OfflineFAQProvider):
         return super().generate(*args, **kwargs)
 
 
-def test_repeated_questions_are_served_from_cache(container):
+def test_answers_are_not_cached(container):
     provider = CountingProvider()
     tutor = TutorService(ChunkStore(container.settings.chunks_path), provider)
 
-    for text in ["What is shaping the future of VA work?", "  what is shaping the future of va work?  "]:
+    for text in ["What is shaping the future of VA work?", "What is shaping the future of VA work?"]:
         assert tutor.answer(ChatRequest(message=text)).status == ChatStatus.ANSWERED
-    assert provider.calls == 1
+    assert provider.calls == 2
 
 
 def test_index_reloads_when_another_worker_changes_the_corpus(container, tmp_path):
@@ -104,8 +104,8 @@ def test_index_reloads_when_another_worker_changes_the_corpus(container, tmp_pat
     import time
     time.sleep(0.02)
 
-    worker_b.store.replace_course("course:bio", [{
-        "id": "bio-1", "course": "Biology", "scope": "course:bio", "title": "Biology",
+    worker_b.store.upsert_lesson("course:bio", "plants", [{
+        "id": "bio-1", "course": "Biology", "scope": "course:bio", "lesson_id": "plants", "title": "Biology",
         "section": "Photosynthesis", "anchor": "#photosynthesis", "url": "/bio#photosynthesis",
         "text": "Photosynthesis lets plants convert sunlight, water and carbon dioxide into sugar.",
     }])

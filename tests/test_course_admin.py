@@ -99,6 +99,30 @@ def test_admin_error_handling(client):
     assert client.post("/api/admin/ingest", json=empty).status_code == 400
 
 
+def test_incremental_lesson_ingest_validation_and_lesson_delete(client):
+    lesson = {"course_id": "course:inc-test", "course_title": "Incremental", "lesson_url": "/inc/one.html",
+              "content": "## Topic A\nTopic A explains how incremental updates keep unchanged sections.\n\n"
+                         "## Topic B\nTopic B explains that changed sections get a new revision number."}
+    try:
+        first = client.post("/api/admin/ingest", json=lesson).json()
+        assert first["lesson_id"] == "one" and first["chunks_created"] == 2
+        assert client.get("/api/health").json()["kb_version"] == first["kb_version"]
+
+        lesson["content"] = lesson["content"].replace("new revision number", "higher revision number")
+        second = client.post("/api/admin/ingest", json=lesson).json()
+        assert (second["chunks_created"], second["chunks_updated"], second["chunks_unchanged"]) == (0, 1, 1)
+        assert second["kb_version"] != first["kb_version"]
+
+        bad = {**lesson, "course_id": "not-a-course-id"}
+        res = client.post("/api/admin/ingest", json=bad)
+        assert res.status_code == 400 and "scope" in res.json()["detail"]
+
+        assert client.delete("/api/admin/courses/course:inc-test/lessons/one").json()["status"] == "deleted"
+        assert client.delete("/api/admin/courses/course:inc-test/lessons/one").status_code == 404
+    finally:
+        client.delete("/api/admin/courses/course:inc-test")
+
+
 def test_admin_portal_page(client):
     res = client.get("/admin/ingest")
     assert res.status_code == 200
