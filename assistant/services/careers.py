@@ -1,4 +1,8 @@
-"""Career gateway: job listings (schema.org/JobPosting), job alerts and interview accommodations."""
+"""Career gateway: job listings (schema.org/JobPosting), job alerts and interview accommodations.
+
+Job postings are persisted in SQLite via the Database repository for ACID safety and multi-process
+consistency. Initial catalogs can be seeded from a JSON file (e.g. bundled jobs.json) on startup.
+"""
 
 import json
 from pathlib import Path
@@ -11,35 +15,28 @@ Job = Dict[str, Any]
 
 
 class CareerService:
-    def __init__(self, db: Database, jobs_path: Path):
+    def __init__(self, db: Database, seed_path: Optional[Path] = None):
         self.db = db
-        self.jobs_path = Path(jobs_path)
-        self._jobs: List[Job] = []
-        self._load()
+        if seed_path:
+            self._seed(Path(seed_path))
 
-    def _load(self) -> None:
-        if self.jobs_path.exists():
+    def _seed(self, seed_path: Path) -> None:
+        """Seed initial jobs from JSON file into SQLite if the table is empty."""
+        if self.db.count_jobs() == 0 and seed_path.exists():
             try:
-                with open(self.jobs_path, "r", encoding="utf-8") as f:
-                    self._jobs = json.load(f)
+                with open(seed_path, "r", encoding="utf-8") as f:
+                    jobs = json.load(f)
+                for job in jobs:
+                    if isinstance(job, dict) and "id" in job:
+                        self.db.save_job(job)
             except Exception:
-                self._jobs = []
-        else:
-            self._jobs = []
-
-    def _save(self) -> None:
-        self.jobs_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.jobs_path, "w", encoding="utf-8") as f:
-            json.dump(self._jobs, f, indent=2, ensure_ascii=False)
+                pass
 
     def list_jobs(self) -> List[Job]:
-        return list(self._jobs)
+        return self.db.list_jobs()
 
     def get_job(self, job_id: str) -> Optional[Job]:
-        for job in self._jobs:
-            if job.get("id") == job_id:
-                return job
-        return None
+        return self.db.get_job(job_id)
 
     def add_job(
         self,
@@ -78,17 +75,11 @@ class CareerService:
             "qualifications": qualifications or "",
             "accommodationsOffered": accommodations_offered or ["Interview accommodations upon request"],
         }
-        self._jobs.append(job)
-        self._save()
+        self.db.save_job(job)
         return job
 
     def delete_job(self, job_id: str) -> bool:
-        initial_len = len(self._jobs)
-        self._jobs = [j for j in self._jobs if j.get("id") != job_id]
-        if len(self._jobs) < initial_len:
-            self._save()
-            return True
-        return False
+        return self.db.delete_job(job_id)
 
     def subscribe(self, channel: str, contact: str, category: str = "all") -> int:
         return self.db.add_subscription(channel, contact, category)
@@ -97,20 +88,22 @@ class CareerService:
         return self.db.add_accommodation(job_id, accommodations, channel, contact)
 
     def sms_summary(self) -> str:
-        if not self._jobs:
+        jobs = self.list_jobs()
+        if not jobs:
             return "ALX Jobs: No active openings right now. Check back soon!"
         items = []
-        for number, job in enumerate(self._jobs, start=1):
+        for number, job in enumerate(jobs, start=1):
             organization = job.get("hiringOrganization", {}).get("name", "ALX Partner")
             location = job.get("jobLocation", {}).get("address", {}).get("addressLocality", "Remote")
             items.append(f"{number}) {job.get('alternateName', job.get('title', 'Job'))} ({organization}, {location})")
         return "ALX Jobs: " + " ".join(items) + " Visit portal to apply with accommodations."
 
     def telegram_summary(self) -> str:
-        if not self._jobs:
+        jobs = self.list_jobs()
+        if not jobs:
             return "💼 <b>Career Gateway</b>\n\nNo active positions at the moment. Check back soon!"
         lines = ["💼 <b>Career Gateway - Available Positions</b>", ""]
-        for number, job in enumerate(self._jobs, start=1):
+        for number, job in enumerate(jobs, start=1):
             org = job.get("hiringOrganization", {}).get("name", "ALX Partner")
             accommodations = job.get("accommodationsOffered", [])
             lines += [

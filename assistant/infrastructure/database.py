@@ -52,6 +52,22 @@ CREATE TABLE IF NOT EXISTS escalations (
     status TEXT DEFAULT 'pending_tutor',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    location TEXT DEFAULT 'Addis Ababa',
+    country TEXT DEFAULT 'ET',
+    employment_type TEXT DEFAULT 'FULL_TIME',
+    alternate_name TEXT,
+    qualifications TEXT,
+    accommodations_json TEXT NOT NULL,
+    raw_json TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
 """
 
 
@@ -116,6 +132,55 @@ class Database:
             (job_id, json.dumps(accommodations), channel, value),
         )
 
+    def save_job(self, job: Dict[str, Any]) -> None:
+        """Insert or replace a job listing in SQLite."""
+        accommodations = job.get("accommodationsOffered", [])
+        company_name = job.get("hiringOrganization", {}).get("name", "")
+        location = job.get("jobLocation", {}).get("address", {}).get("addressLocality", "")
+        country = job.get("jobLocation", {}).get("address", {}).get("addressCountry", "ET")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO jobs "
+                "(id, title, company_name, description, location, country, employment_type, alternate_name, qualifications, accommodations_json, raw_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    job["id"],
+                    job.get("title", ""),
+                    company_name,
+                    job.get("description", ""),
+                    location,
+                    country,
+                    job.get("employmentType", "FULL_TIME"),
+                    job.get("alternateName"),
+                    job.get("qualifications", ""),
+                    json.dumps(accommodations),
+                    json.dumps(job),
+                ),
+            )
+
+    def list_jobs(self) -> List[Dict[str, Any]]:
+        """List all active job postings."""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT raw_json FROM jobs ORDER BY created_at ASC").fetchall()
+            return [json.loads(row["raw_json"]) for row in rows]
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single job posting by ID."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT raw_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            return json.loads(row["raw_json"]) if row else None
+
+    def delete_job(self, job_id: str) -> bool:
+        """Delete a job posting by ID."""
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            return cur.rowcount > 0
+
+    def count_jobs(self) -> int:
+        """Return total count of jobs stored in the database."""
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+
     def analytics_summary(self, top_n: int = 5) -> Dict[str, Any]:
         with self._connect() as conn:
             def scalar(sql: str) -> int:
@@ -146,6 +211,7 @@ class Database:
                     "sample_unanswered_topics": [row["message"] for row in unanswered],
                 },
                 "career_gateway": {
+                    "total_active_jobs": scalar("SELECT COUNT(*) FROM jobs"),
                     "total_accommodations_requested": scalar("SELECT COUNT(*) FROM accommodations"),
                     "total_alert_subscribers": scalar("SELECT COUNT(*) FROM subscriptions"),
                 },
