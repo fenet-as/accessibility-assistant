@@ -34,9 +34,9 @@ node_modules/
 package-lock.json
 
 # External cloned reference repos (untracked in this project)
-savanna-static/
+# savanna-static/
 
-docs/
+# docs/
 done_so_far/
 "done so far/"
 done_so_far/

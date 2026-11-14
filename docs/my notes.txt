@@ -1,0 +1,108 @@
+
+```env
+# 1. AI Engine (faq | cloud)
+AI_PROVIDER=faq
+GEMINI_API_KEY=
+
+# 2. Server Deployment
+HOST=127.0.0.1          # Set to 0.0.0.0 for Docker/Cloud hosting
+PORT=8000
+HOST_URL=http://localhost:8000
+CORS_ORIGINS=*
+
+# 3. Database
+DATABASE_PATH=assistant/data/assistant.db
+
+# 4. Omnichannel (Optional)
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_STAFF_CHAT_ID=
+
+# 5. Live Human Escalation
+JITSI_BASE_URL=https://meet.jit.si
+```
+
+---
+
+#### TASK-15: Privacy-Preserving Teacher Analytics Dashboard
+* **Interactive Live Dashboard:** Open **[http://localhost:8000/analytics](http://localhost:8000/analytics)**
+
+
+#### TASK-16: Level 3 LTI 1.3 LMS Configuration Standard
+* **Manifest Endpoint:** `GET /api/lti/config.json` (Open **[http://localhost:8000/api/lti/config.json](http://localhost:8000/api/lti/config.json)**)
+
+---
+
+
+
+
+Ran check if dotenv is imported in python files
+Ran check if dotenv is installed
+Ran check env files
+Analyzed .env:L1-7
+Analyzed .gitignore:L1-43
+Ran check git status
+Ran copy .env to root
+Analyzed factory.py:L1-14
+Edited factory.py
+
+Error: API error (attempt 1): request failed: Post "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse": read tcp 192.168.1.6:60807->172.217.115.4:443: wsarecv: An existing connection was forcibly closed by the remote host. (Error ID: c8b35b33-4c54-4745-94c0-d1c23e4be525-671)
+
+Edited main.py
+Ran check provider instantiation
+Killed task Restart uvicorn with database and analytics
+Running start uvicorn server with Gemini provider
+Ran check health endpoint
+Ran test chat query with Gemini
+Ran check git status
+Ran check ignored files
+Ran commit and push dotenv integration
+
+Your `assistant/.env` file was detected, and we integrated `python-dotenv` so your Gemini API key is loaded automatically.
+
+The server has restarted and is now running with **`cloud_gemini`** live! You can verify this anytime at [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health):
+```json
+{
+  "status": "healthy",
+  "provider": "cloud_gemini",
+  "indexed_chunks": 8,
+  "version": "1.0.0"
+}
+```
+
+---
+
+### How to Run It on Your Own in the Terminal
+
+```powershell
+pip install -r requirements.txt
+```
+
+#### Step 3: Start the Backend Server
+Run this single command:
+```powershell
+python -m uvicorn assistant.api.main:app --host 127.0.0.1 --port 8000 --reload
+```
+*(The `--reload` flag automatically refreshes the server whenever you edit any code or `.env`).*
+
+#### Step 4: Open in Your Browser
+* **Savanna LMS Course (with Assistant):** [http://localhost:8000/pages/concept-with-navigation.html](http://localhost:8000/pages/concept-with-navigation.html)
+* **Stage 1 Accessibility Audit:** [http://localhost:8000/a11y-audit](http://localhost:8000/a11y-audit)
+* **Interactive API Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Teacher Analytics Dashboard:** [http://localhost:8000/analytics](http://localhost:8000/analytics)
+* **SMS Feature Phone Simulator:** [http://localhost:8000/sms-simulator](http://localhost:8000/sms-simulator)
+
+http://127.0.0.1:8000/api/health
+
+
+
+questions 
+
+How do I bake a chocolate cake?
+
+ሰው ሰራሽ አስተዋይነት (AI) በቨርቹዋል ረዳቶች ሥራ ላይ ያለው ሚና ምንድን ነው?
+
+What is shaping the future of virtual assistant work?
+
+
+
+* it should be decoupled 
