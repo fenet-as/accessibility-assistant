@@ -3,6 +3,6 @@ uvicorn[standard]>=0.30.0
 pydantic>=2.8.0
 beautifulsoup4>=4.12.0
 python-dotenv>=1.0.0
-pytest>=8.0.0
 httpx>=0.27.0
-
+# Only needed when AI_PROVIDER=cloud; the offline FAQ provider works without it.
+google-genai>=1.0.0

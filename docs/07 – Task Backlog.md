@@ -5,6 +5,10 @@
 This backlog translates `docs/00` through `docs/06` into discrete, testable implementation tasks.
 Each task includes clear **Acceptance Criteria (AC)**, **Owner Area**, and **Scoring Impact**.
 
+> File paths below (`assistant/core/…`, `assistant/adapters/…`) describe the layout these tasks were
+> built in. The code has since moved to `domain/`, `services/`, `infrastructure/` and `channels/`;
+> see the README for the current layout.
+
 Status tags:
 - `[ ] Planned`
 - `[-] In Progress`

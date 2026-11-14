@@ -1,3 +1,3 @@
-"""ALX Digital Bridge Accessibility Assistant Core Package."""
-__version__ = "0.1.0"
+"""ALX Digital Bridge Accessibility Assistant."""
 
+__version__ = "1.0.0"

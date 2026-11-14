@@ -1,0 +1,55 @@
+[
+  {
+    "@context": "https://schema.org/",
+    "@type": "JobPosting",
+    "id": "job-va-01",
+    "title": "Junior Virtual Assistant & Customer Support",
+    "alternateName": "Junior VA",
+    "description": "Provide remote email management, scheduling, and customer communication using AI tools.",
+    "hiringOrganization": {
+      "@type": "Organization",
+      "name": "African Remote Operations"
+    },
+    "jobLocation": {
+      "@type": "Place",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Addis Ababa",
+        "addressCountry": "ET"
+      }
+    },
+    "employmentType": "REMOTE",
+    "qualifications": "Strong communication skills, familiarity with AI tools, English & Amharic fluency.",
+    "accommodationsOffered": [
+      "Flexible hours",
+      "Screen reader friendly workflow",
+      "Async text communication"
+    ]
+  },
+  {
+    "@context": "https://schema.org/",
+    "@type": "JobPosting",
+    "id": "job-va-02",
+    "title": "Digital Project Coordinator",
+    "alternateName": "Digital Coordinator",
+    "description": "Coordinate project deliverables, team check-ins, and documentation for international clients.",
+    "hiringOrganization": {
+      "@type": "Organization",
+      "name": "EthioTech Talent Hub"
+    },
+    "jobLocation": {
+      "@type": "Place",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Remote",
+        "addressCountry": "ET"
+      }
+    },
+    "employmentType": "FULL_TIME",
+    "qualifications": "Organization, attention to detail, digital tool fluency.",
+    "accommodationsOffered": [
+      "Screen reader accessible tools",
+      "Interview accommodations upon request"
+    ]
+  }
+]

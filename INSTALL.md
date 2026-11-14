@@ -89,10 +89,10 @@ URL: https://your-domain.com/api/lti/config.json
    ```bash
    git clone https://github.com/fenet-as/accessibility-assistant.git
    cd accessibility-assistant
-   pip install -r assistant/requirements.txt
+   pip install -r requirements.txt
    ```
 
-2. **Start Backend Server:**
+2. **Start Backend Server** (or `docker compose up --build`):
    ```bash
    python -m uvicorn assistant.api.main:app --host 127.0.0.1 --port 8000
    ```

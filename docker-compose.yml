@@ -1,0 +1,29 @@
+x-assistant: &assistant
+  build: .
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    # Database and course index live on a shared volume, so they survive restarts
+    # and the API and the Telegram bot see the same courses.
+    DATABASE_PATH: /app/var/assistant.db
+    CHUNKS_PATH: /app/var/chunks.json
+    WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+  volumes:
+    - assistant-data:/app/var
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *assistant
+    ports:
+      - "8000:8000"
+
+  # Optional Telegram long-polling bot: docker compose --profile telegram up
+  telegram:
+    <<: *assistant
+    command: ["python", "-m", "assistant.channels.telegram"]
+    profiles: ["telegram"]
+
+volumes:
+  assistant-data:

@@ -1,0 +1,10 @@
+[project]
+name = "alx-accessibility-assistant"
+version = "1.0.0"
+description = "Accessible multilingual tutor, live help and career gateway for Savanna (ALX Digital Bridge, Track 3)"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]

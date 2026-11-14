@@ -1,43 +1,35 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 venv/
 .venv/
 env/
-ENV/
 
-# Secrets and environment variables
+# Secrets
 .env
 *.env.local
 
-# Testing and coverage
-.pytest_cache/
-.coverage
-htmlcov/
-test-results/
+# Runtime data (SQLite and its WAL files)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+var/
 
-# OS and Editor artifacts
-.DS_Store
-Thumbs.db
+# Editors and OS
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
 
-# Database
-*.db
-*.sqlite3
-
-# Node modules
+# Node
 node_modules/
-package-lock.json
 
-# External cloned reference repos (untracked in this project)
-# savanna-static/
-
-# docs/
-done_so_far/
-"done so far/"
+# Personal working notes
 done_so_far/
 "done so far/"
