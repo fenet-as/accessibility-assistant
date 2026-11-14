@@ -128,3 +128,24 @@ def test_sms_inbound_api_universal(client):
     assert data_form["status"] == "success"
     assert data_form["sender"] == "+251711223344"
     assert "Junior VA" in data_form["segments"][0]
+
+
+def test_sms_inbound_telerivet(client):
+    """Telerivet uses from_number, content, and expects a messages array in response."""
+    res_get = client.get("/api/sms/inbound")
+    assert res_get.status_code == 200
+    assert res_get.json()["status"] == "ok"
+
+    res = client.post("/api/sms/inbound", data={
+        "event": "incoming_message",
+        "from_number": "+251911998877",
+        "content": "HELP",
+        "secret": "my_telerivet_secret"
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert data["sender"] == "+251911998877"
+    assert "messages" in data
+    assert len(data["messages"]) >= 1
+    assert "content" in data["messages"][0]
