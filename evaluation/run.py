@@ -28,7 +28,8 @@ REPORT_PATH = EVAL_DIR / "REPORT.md"
 TOP_K = 3
 
 DECISIONS = {ChatStatus.ANSWERED: "answer", ChatStatus.NEEDS_CLARIFICATION: "clarify",
-             ChatStatus.NOT_FOUND: "not_found", ChatStatus.NEEDS_HUMAN: "not_found"}
+             ChatStatus.NOT_FOUND: "not_found", ChatStatus.NEEDS_HUMAN: "not_found",
+             ChatStatus.OUT_OF_SCOPE: "not_found"}
 
 
 @dataclass

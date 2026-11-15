@@ -78,7 +78,76 @@ def test_cache_key_changes_when_kb_version_changes():
     assert base != other
 
 
-def test_not_cacheable_without_citations():
+def test_cache_key_changes_with_history_fingerprint():
+    from assistant.domain.models import ConversationTurn
+    from assistant.infrastructure.answer_cache import history_fingerprint
+
+    empty = cache_key_parts(
+        scope="course:va-1", language="en", question="What are its advantages?",
+        simple=False, kb_version="abc", model_version="faq", history_fp="",
+    )
+    topic_a = history_fingerprint([
+        ConversationTurn(role="user", content="What is freelancing?"),
+        ConversationTurn(role="assistant", content="Freelancing means working independently."),
+    ])
+    topic_b = history_fingerprint([
+        ConversationTurn(role="user", content="What is a virtual assistant?"),
+        ConversationTurn(role="assistant", content="A VA is a remote professional."),
+    ])
+    key_a = cache_key_parts(
+        scope="course:va-1", language="en", question="What are its advantages?",
+        simple=False, kb_version="abc", model_version="faq", history_fp=topic_a,
+    )
+    key_b = cache_key_parts(
+        scope="course:va-1", language="en", question="What are its advantages?",
+        simple=False, kb_version="abc", model_version="faq", history_fp=topic_b,
+    )
+    assert topic_a != topic_b
+    assert key_a != key_b
+    assert key_a != empty
+
+
+def test_cache_stores_metadata_and_preserves_provider(container):
+    settings = replace(container.settings, enable_exact_cache=True, cache_ttl_seconds=120)
+    cache = AnswerCache(settings)
+    from assistant.domain.models import ChatResponse, Citation
+
+    response = ChatResponse(
+        status=ChatStatus.ANSWERED,
+        language="en",
+        answer="Remote-first businesses are reshaping VA work.",
+        citations=[Citation(title="t", section="What is Shaping the Future of VA Work?", url="/x")],
+        provider="offline_faq",
+        answer_source="faq",
+    )
+    key = cache.make_key(
+        scope="course:va-1",
+        language="en",
+        question="What is shaping the future of VA work?",
+        simple=False,
+        kb_version="kb1",
+        model_version="faq|course",
+        history_fp="",
+    )
+    cache.set(
+        key,
+        response,
+        question="What is shaping the future of VA work?",
+        scope="course:va-1",
+        kb_version="kb1",
+        model_version="faq|course",
+        history_fp="",
+        answer_mode="course",
+    )
+    hit = cache.get(key)
+    assert hit is not None
+    assert hit.cache_hit is True
+    assert hit.answer_source == "cache"
+    assert hit.provider == "offline_faq"
+    assert "Shaping the Future" in hit.citations[0].section
+
+
+def test_not_cacheable_without_citations_for_course_answers():
     from assistant.domain.models import ChatResponse
 
     response = ChatResponse(
@@ -86,8 +155,26 @@ def test_not_cacheable_without_citations():
         language="en",
         answer="Text",
         citations=[],
+        answer_source="cloud",
     )
     assert is_cacheable(response, ("Section",)) is False
+
+
+def test_general_knowledge_answers_are_cacheable_without_citations():
+    from assistant.domain.models import ChatResponse
+
+    response = ChatResponse(
+        status=ChatStatus.ANSWERED,
+        language="en",
+        answer="A portfolio shows your skills with concrete samples.",
+        citations=[],
+        answer_source="cloud_general",
+    )
+    assert is_cacheable(response, ()) is True
+    # Still refuse to cache if it somehow cites a section we never retrieved.
+    from assistant.domain.models import Citation
+    response.citations = [Citation(title="t", section="Invented", url="/x")]
+    assert is_cacheable(response, ()) is False
 
 
 def test_prefers_extractive_on_high_confidence_definitional():

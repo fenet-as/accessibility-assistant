@@ -11,8 +11,14 @@ from assistant.domain.language import get_language
 from assistant.domain.messages import not_found_response
 from assistant.domain.models import HUMAN_HELP_ACTION, ChatResponse, ChatStatus, ConversationTurn, Passage
 from assistant.domain.ports import AIProvider
+from assistant.domain.messages import out_of_scope_response
+from assistant.infrastructure.providers.answer_mode import (
+    COURSE,
+    GENERAL,
+    SENTINEL_NOT_FOUND,
+    SENTINEL_OUT_OF_SCOPE,
+)
 from assistant.infrastructure.providers.gemini import (
-    NOT_FOUND_SENTINEL,
     build_prompt,
     build_system_instruction,
     cited_passages,
@@ -45,6 +51,16 @@ class LocalModelProvider:
         self.timeout_seconds = timeout_seconds
         self.usage = usage
 
+    def provider_status(self) -> dict:
+        configured = bool(self.base_url)
+        return {
+            "name": self.name,
+            "configured": configured,
+            "available": configured,
+            "status": "ready" if configured else "missing_url",
+            "model": self.model,
+        }
+
     def generate(
         self,
         question: str,
@@ -54,17 +70,25 @@ class LocalModelProvider:
         history: Optional[List[ConversationTurn]] = None,
         *,
         confidence: float = 0.0,
+        answer_mode: str = COURSE,
+        scope_confirmed: bool = True,
     ) -> ChatResponse:
+        mode = GENERAL if (answer_mode == GENERAL or not passages) else COURSE
         if not self.base_url:
-            return self.fallback.generate(question, passages, language, simple, history=history)
+            return self.fallback.generate(
+                question, passages, language, simple, history=history, confidence=confidence,
+                answer_mode=mode, scope_confirmed=scope_confirmed,
+            )
 
         trimmed = trim_passages_for_context(
             passages,
             language,
             max_context_tokens=self.max_context_tokens,
+        ) if passages else []
+        system = build_system_instruction(
+            language, simple, answer_mode=mode, scope_confirmed=scope_confirmed
         )
-        system = build_system_instruction(language, simple)
-        prompt = build_prompt(question, trimmed, language, history=history)
+        prompt = build_prompt(question, trimmed, language, history=history, answer_mode=mode)
         payload = {
             "model": self.model,
             "messages": [
@@ -83,20 +107,30 @@ class LocalModelProvider:
                 body = res.json()
         except Exception:
             logger.warning("Local model call failed; using offline FAQ fallback", exc_info=True)
-            return self.fallback.generate(question, passages, language, simple, history=history)
+            return self.fallback.generate(
+                question, passages, language, simple, history=history, confidence=confidence,
+                answer_mode=mode, scope_confirmed=scope_confirmed,
+            )
 
         text = ""
         try:
             text = (body["choices"][0]["message"]["content"] or "").strip()
         except (KeyError, IndexError, TypeError):
-            return self.fallback.generate(question, passages, language, simple, history=history)
+            return self.fallback.generate(
+                question, passages, language, simple, history=history, confidence=confidence,
+                answer_mode=mode, scope_confirmed=scope_confirmed,
+            )
 
         output_tokens = estimate_tokens(text)
         if self.usage:
             self.usage.record_provider_request(self.name)
             self.usage.record_tokens(input_tokens=input_tokens, output_tokens=output_tokens)
 
-        if not text or NOT_FOUND_SENTINEL in text:
+        if not text:
+            return not_found_response(language)
+        if SENTINEL_OUT_OF_SCOPE in text:
+            return out_of_scope_response(language)
+        if SENTINEL_NOT_FOUND in text:
             return not_found_response(language)
 
         return ChatResponse(

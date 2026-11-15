@@ -22,40 +22,58 @@ CONTENT_ROOT_ID = "curriculum_navigation_content"
 SKIPPED_PREFIXES = ("VA-Content-Banner", "Evon afro")
 
 INTRO_KEYWORDS = (
-    "virtual assistant definition remote professional AI assistant difference",
+    "virtual assistant definition remote professional AI assistant difference human vs software "
+    "what is a va meaning of virtual assistant",
     "ቨርቹዋል ረዳት ምንድን ነው መግቢያ ትርጉም የሰው ረዳት እና የኮምፒውተር ረዳት ልዩነት",
 )
 
 # Section anchor fragment -> (extra English keywords, Amharic keywords).
 SECTION_KEYWORDS: Dict[str, Tuple[str, str]] = {
     "shaping-the-future": (
-        "remote-first flexibility digital operations specialization AI productivity human skills",
+        "remote-first flexibility digital operations specialization AI productivity human skills "
+        "remote jobs distributed teams industry trends",
         "የቨርቹዋል ረዳት የወደፊት ሁኔታ አዝማሚያዎች የርቀት ሥራ ተለዋዋጭነት ዲጂታል ክህሎቶች የሰው ችሎታ",
     ),
     "artificial-intelligence": (
-        "artificial intelligence tools automation drafting summaries human relationship empathy",
+        "artificial intelligence tools automation drafting summaries human relationship empathy "
+        "chatgpt ai tools will ai replace vas how can ai help virtual assistants "
+        "how can ai tools support virtual assistants",
         "ሰው ሰራሽ አስተዋይነት AI የኮምፒውተር ቴክኖሎጂ ጥቅሞች እና የሰው ረዳት አስፈላጊነት",
     ),
     "what-clients-are-likely-to-value": (
-        "client value AI fluency specialized expertise excellent human service",
+        "client value AI fluency specialized expertise excellent human service skills employers want",
         "ደንበኞች የሚፈልጓቸው ክህሎቶች የቴክኖሎጂ ችሎታ ልዩ እውቀት የሰው አገልግሎት",
     ),
     "what-this-means-for-aspiring": (
-        "aspiring virtual assistants tips advice learn digital tools communication",
+        "aspiring virtual assistants tips advice learn digital tools communication "
+        "beginner guide stay teachable",
         "ለጀማሪ ቨርቹዋል ረዳቶች ምክር አዳዲስ ቴክኖሎጂዎችን መማር ግንኙነት",
     ),
     "promising": (
-        "promising future career workflow partner operations",
+        "promising future career workflow partner operations job outlook is va a good career",
         "የቨርቹዋል ረዳት ሥራ ተስፋ አለው ወይ የወደፊት ዕድል",
     ),
 }
 
 # Section anchor fragment -> phrases learners use for the same idea.
 SECTION_SYNONYMS: Dict[str, List[str]] = {
-    "artificial-intelligence": ["machine learning", "chatgpt", "automation tools", "robots replacing jobs"],
-    "shaping-the-future": ["trends", "industry changes", "work from home"],
+    "artificial-intelligence": [
+        "machine learning",
+        "chatgpt",
+        "automation tools",
+        "robots replacing jobs",
+        "how can ai help",
+        "ai help virtual assistants",
+        "how can ai tools support",
+    ],
+    "shaping-the-future": [
+        "trends",
+        "industry changes",
+        "remote-first businesses",
+        "what is shaping the future",
+    ],
     "what-clients-are-likely-to-value": ["employer expectations", "what customers want", "in-demand skills"],
-    "what-this-means-for-aspiring": ["beginners", "getting started", "new virtual assistants"],
+    "what-this-means-for-aspiring": ["beginners", "new virtual assistants", "tips for aspiring vas"],
     "promising": ["job outlook", "is it worth it", "career prospects"],
 }
 
@@ -76,12 +94,17 @@ def _section_keywords(anchor_id: str, section_title: str) -> Tuple[str, str]:
     return section_title.lower(), ""
 
 
-def load_curated_translations(path: Optional[Path]) -> Dict[str, Dict[str, str]]:
+def load_curated_translations(path: Optional[Path] = None) -> Dict[str, Dict[str, str]]:
     """All curated offline translations keyed by language, then by anchor fragment."""
-    if not path or not path.exists():
+    if path and path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {lang: answers for lang, answers in data.items() if not lang.startswith("_")}
+    try:
+        from assistant.data.curated_translations import CURATED_TRANSLATIONS
+
+        return {lang: dict(answers) for lang, answers in CURATED_TRANSLATIONS.items()}
+    except ImportError:
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return {lang: answers for lang, answers in data.items() if not lang.startswith("_")}
 
 
 def _translations_for_anchor(catalog: Dict[str, Dict[str, str]], anchor_id: str) -> Dict[str, str]:

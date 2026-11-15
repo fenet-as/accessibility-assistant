@@ -66,9 +66,9 @@ def test_chat_endpoint_out_of_scope(client):
     })
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "not_found"
+    assert data["status"] == "out_of_scope"
+    assert data["question_type"] == "unrelated"
     assert data["citations"] == []
-    assert "get_human_help" in data["actions"]
 
 
 def test_chat_rejects_oversized_message(client):
@@ -114,6 +114,8 @@ def test_create_and_delete_job_endpoint(client, container):
             "Flexible working hours",
             "Async team reviews",
         ],
+        "source_url": "https://example.com/jobs/accessible-qa",
+        "closing_date": "2099-12-31",
     }
     res = client.post("/api/jobs", json=payload)
     assert res.status_code == 201

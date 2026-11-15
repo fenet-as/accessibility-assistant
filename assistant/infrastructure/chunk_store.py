@@ -1,8 +1,8 @@
-"""File-backed knowledge base (`chunks.json`).
+"""Knowledge base store: SQLite is the runtime source of truth; `chunks.json` is seed-only.
 
-File format v2: {"schema_version": 2, "kb_version": "...", "chunks": [...]}; a bare list (v1) still loads.
-Writes are atomic (temp file + rename) so a reader never sees a half-written corpus,
-and `version` (file mtime) lets every worker process notice when another one changed it.
+When a Database is wired in, lesson upserts and deletes touch only the affected rows
+inside one transaction and bump shared `kb_meta.revision` so every worker reloads.
+File-only mode (tests without a database) still writes the JSON document atomically.
 """
 
 import json
@@ -39,23 +39,22 @@ class ChunkStore:
         self.path = Path(path)
         self.db = db
         self._write_lock = threading.Lock()
-        self._db_version = 0
 
     @property
     def version(self) -> int:
+        """Opaque change counter: SQLite kb_meta.revision, or file mtime in file-only mode."""
         if self.db is not None:
-            return self._db_version
+            return self.db.get_kb_revision()
         try:
             return self.path.stat().st_mtime_ns
         except FileNotFoundError:
             return 0
 
     def load(self) -> List[Chunk]:
-        """Validated chunks from SQLite database if configured, otherwise from JSON file."""
+        """Validated chunks from SQLite when configured, otherwise from the JSON seed file."""
         if self.db is not None:
-            db_chunks = self.db.list_course_chunks()
-            if db_chunks:
-                return validate_chunks(db_chunks)
+            raw = self.db.list_course_chunks()
+            return validate_chunks(raw) if raw else []
         if not self.path.exists():
             return []
         with open(self.path, "r", encoding="utf-8") as f:
@@ -64,13 +63,17 @@ class ChunkStore:
         return validate_chunks(raw)
 
     def save(self, chunks: List[Chunk]) -> str:
+        """Replace the whole corpus. Prefer upsert_lesson for incremental admin ingest."""
         chunks = validate_chunks(chunks)
         kb_version = compute_kb_version(chunks)
         if self.db is not None:
             with self._write_lock:
-                self.db.delete_course_chunks("%")
-                self.db.save_course_chunks(chunks)
-                self._db_version += 1
+                return self.db.replace_all_course_chunks(chunks)
+        return self._save_file(chunks, kb_version)
+
+    def _save_file(self, chunks: List[Chunk], kb_version: Optional[str] = None) -> str:
+        chunks = validate_chunks(chunks)
+        kb_version = kb_version or compute_kb_version(chunks)
         document = {"schema_version": SCHEMA_VERSION, "kb_version": kb_version, "chunks": chunks}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._write_lock:
@@ -85,14 +88,14 @@ class ChunkStore:
         return kb_version
 
     def seed_from(self, source: Path) -> None:
-        """First start on a fresh volume or database: seed corpus into SQLite and/or file."""
+        """First start on a fresh volume: seed SQLite (and optionally the local JSON path)."""
         if self.db is not None and self.db.count_course_chunks() == 0 and source.exists():
             with open(source, "r", encoding="utf-8") as f:
                 data = json.load(f)
             raw = data["chunks"] if isinstance(data, dict) else data
             chunks = validate_chunks(raw)
-            self.db.save_course_chunks(chunks)
-            self._db_version += 1
+            with self._write_lock:
+                self.db.replace_all_course_chunks(chunks)
 
         if not self.path.exists() and source.exists() and source.resolve() != self.path.resolve():
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,11 +134,19 @@ class ChunkStore:
                 updated += 1
         removed = len(set(previous) - {c["id"] for c in new_chunks})
 
-        kb_version = self.save(kept + new_chunks)
+        if self.db is not None:
+            with self._write_lock:
+                kb_version = self.db.replace_lesson_chunks(set(previous.keys()), new_chunks)
+        else:
+            kb_version = self._save_file(kept + new_chunks)
         return UpsertResult(added, updated, unchanged, removed, kb_version, new_chunks)
 
     @property
     def kb_version(self) -> str:
+        if self.db is not None:
+            stored = self.db.get_kb_version()
+            if stored:
+                return stored
         return compute_kb_version(self.load())
 
     def delete_course(self, scope: str) -> bool:
@@ -146,8 +157,12 @@ class ChunkStore:
 
     def _delete(self, matches) -> bool:
         chunks = self.load()
-        kept = [c for c in chunks if not matches(c)]
-        if len(kept) == len(chunks):
+        remove_ids = {c["id"] for c in chunks if matches(c)}
+        if not remove_ids:
             return False
-        self.save(kept)
+        if self.db is not None:
+            with self._write_lock:
+                self.db.replace_lesson_chunks(remove_ids, [])
+        else:
+            self._save_file([c for c in chunks if c["id"] not in remove_ids])
         return True

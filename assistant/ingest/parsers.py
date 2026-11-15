@@ -22,8 +22,10 @@ AMHARIC_CONCEPTS: List[Tuple[Tuple[str, ...], str]] = [
     (("virtual assistant", "va"), "ቨርቹዋል ረዳት የሰው ረዳት"),
     (("ai", "artificial intelligence"), "ሰው ሰራሽ አስተዋይነት የኮምፒውተር ቴክኖሎጂ"),
     (("remote", "online", "work"), "የርቀት ሥራ በኢንተርኔት"),
+    (("freelance", "freelancing", "freelancer"), "ፍሪላንስ ፍሪላንሲንግ ነፃ ሥራ ገለልተኛ ሥራ"),
     (("skill", "expertise"), "ክህሎት ሙያ ልዩ እውቀት"),
     (("communication", "client"), "ግንኙነት ደንበኛ አገልግሎት"),
+    (("tool", "software", "app"), "መሣሪያ ሶፍትዌር መተግበሪያ"),
     (("python", "programming", "code"), "ፓይዘን ፕሮግራሚንግ ኮድ አሰራር"),
     (("project", "management"), "የፕሮጀክት አስተዳደር ማስተባበር"),
     (("accessibility", "disability"), "ተደራሽነት ለአካል ጉዳተኞች"),
@@ -67,6 +69,7 @@ def build_chunk(
     anchor: Optional[str] = None,
     keyword_title: Optional[str] = None,
     translations: Optional[Dict[str, str]] = None,
+    source_kind: str = "course",
 ) -> Chunk:
     anchor = anchor or slugify(section)
     keywords_en, keywords_am = extract_keywords(body, keyword_title or section)
@@ -85,6 +88,7 @@ def build_chunk(
         "keywords_am": keywords_am,
         "keywords_en": keywords_en,
         "synonyms": [],
+        "source_kind": source_kind if source_kind in ("course", "supplemental") else "course",
     }
 
 

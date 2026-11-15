@@ -6,13 +6,16 @@
   'use strict';
 
   const DB_NAME = 'alx-assistant-offline';
-  const DB_VERSION = 1;
+  const DB_VERSION = 3;
   const STORES = {
     packs: 'packs',
     meta: 'meta',
     history: 'history',
     unanswered: 'unanswered',
     pending: 'pending',
+    answers: 'answers',
+    conversations: 'conversations',
+    conversation_messages: 'conversation_messages',
   };
 
   function openDb() {
@@ -40,10 +43,108 @@
           pending.createIndex('by_dedupe', 'dedupe_key', { unique: true });
           pending.createIndex('by_status', 'status', { unique: false });
         }
+        if (!db.objectStoreNames.contains(STORES.answers)) {
+          const answers = db.createObjectStore(STORES.answers, { keyPath: 'id' });
+          answers.createIndex('by_scope', 'scope', { unique: false });
+          answers.createIndex('by_expires', 'expires_at', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(STORES.conversations)) {
+          const conv = db.createObjectStore(STORES.conversations, { keyPath: 'id' });
+          conv.createIndex('by_owner', 'owner_id', { unique: false });
+          conv.createIndex('by_updated', 'updated_at', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(STORES.conversation_messages)) {
+          const msgs = db.createObjectStore(STORES.conversation_messages, { keyPath: 'id' });
+          msgs.createIndex('by_conversation', 'conversation_id', { unique: false });
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
     });
+  }
+
+  function normalizeQuestion(text) {
+    return String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function answerCacheId(parts) {
+    const raw = [
+      parts.scope || '',
+      parts.language || 'en',
+      normalizeQuestion(parts.question || ''),
+      parts.simple ? '1' : '0',
+      parts.kb_version || '',
+    ].join('|');
+    let hash = 0;
+    for (let i = 0; i < raw.length; i += 1) {
+      hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'ans_' + (hash >>> 0).toString(16) + '_' + raw.length;
+  }
+
+  async function saveCachedAnswer(entry) {
+    const id = entry.id || answerCacheId(entry);
+    const ttlMs = (entry.ttl_seconds != null ? entry.ttl_seconds : 3600) * 1000;
+    const created = entry.created_at || new Date().toISOString();
+    const expires = entry.expires_at || new Date(Date.now() + ttlMs).toISOString();
+    const record = {
+      id,
+      scope: entry.scope || '',
+      language: entry.language || 'en',
+      question: normalizeQuestion(entry.question || ''),
+      simple: !!entry.simple,
+      kb_version: entry.kb_version || '',
+      provider: entry.provider || null,
+      answer_source: entry.answer_source || entry.source || 'local',
+      status: entry.status || 'answered',
+      answer: entry.answer || '',
+      citations: entry.citations || [],
+      confidence: entry.confidence,
+      created_at: created,
+      expires_at: expires,
+    };
+    if (!record.answer || record.status !== 'answered') {
+      return { ok: false, reason: 'not_answered' };
+    }
+    try {
+      await idbPut(STORES.answers, record);
+      return { ok: true, id };
+    } catch (err) {
+      if (isQuotaError(err)) return { ok: false, quota: true, error: err };
+      throw err;
+    }
+  }
+
+  async function getCachedAnswer(parts) {
+    const id = answerCacheId(parts);
+    const record = await idbGet(STORES.answers, id);
+    if (!record) return null;
+    if (record.expires_at && Date.parse(record.expires_at) < Date.now()) {
+      try {
+        const db = await openDb();
+        const tx = db.transaction(STORES.answers, 'readwrite');
+        tx.objectStore(STORES.answers).delete(id);
+        await txDone(tx);
+      } catch (e) { /* best-effort expiry cleanup */ }
+      return null;
+    }
+    if (parts.kb_version && record.kb_version && parts.kb_version !== record.kb_version) {
+      return null;
+    }
+    return {
+      status: record.status,
+      language: record.language,
+      answer: record.answer,
+      citations: record.citations || [],
+      actions: ['get_human_help'],
+      confidence: record.confidence,
+      source: 'local',
+      answer_source: 'cache',
+      cache_hit: true,
+      provider: record.provider || 'local_cache',
+      translation_fallback: false,
+    };
   }
 
   function txDone(tx) {
@@ -293,14 +394,21 @@
         phrase = hits / queryBigrams.size;
       }
       const raw = bm25[docId];
-      const rank = w.bm25 * (raw / maxBm25) + w.coverage * coverage + w.title * title
+      let rank = w.bm25 * (raw / maxBm25) + w.coverage * coverage + w.title * title
         + w.keyword * keyword + w.phrase * phrase;
+      const sourceKind = String((docs[docId].chunk && docs[docId].chunk.source_kind) || 'course').toLowerCase();
+      const supplementalPenalty = (ranking.supplemental_rank_penalty != null)
+        ? ranking.supplemental_rank_penalty : 0.08;
+      if (sourceKind === 'supplemental') {
+        rank = Math.max(0, rank - supplementalPenalty);
+      }
       const bonus = c.title * title + c.phrase * phrase;
       const confidence = Math.min(1, c.coverage * coverage + bonus);
       bonuses[docs[docId].chunk.id] = bonus;
-      return { rank, raw, confidence, docId };
+      const official = sourceKind === 'supplemental' ? 0 : 1;
+      return { rank, official, raw, confidence, docId, sourceKind };
     });
-    scored.sort((a, b) => (b.rank - a.rank) || (b.raw - a.raw));
+    scored.sort((a, b) => (b.rank - a.rank) || (b.official - a.official) || (b.raw - a.raw));
     const passages = scored.slice(0, topK).map((item) => {
       const chunk = docs[item.docId].chunk;
       return {
@@ -317,6 +425,7 @@
         score: Math.round(item.rank * 1000) / 1000,
         confidence: Math.round(item.confidence * 1000) / 1000,
         matched_terms: Object.keys(matched[item.docId]).sort(),
+        source_kind: item.sourceKind || 'course',
       };
     });
     return { query_terms: queryTerms, passages, term_weights: weights, bonuses };
@@ -410,6 +519,16 @@
     };
   }
 
+  function offlineUnavailableMessage(pack, language) {
+    const messages = pack.messages || {};
+    if (messages.offline_general_unavailable) {
+      return localize(messages.offline_general_unavailable, language);
+    }
+    return localize(messages.not_found, language) + '\n\n'
+      + ((pack.offline_capabilities && pack.offline_capabilities.note)
+        || 'Offline mode uses downloaded course content only. Cloud AI is unavailable offline.');
+  }
+
   function answerLocally(pack, request) {
     const language = request.language && request.language !== 'auto' ? request.language : 'en';
     const thresholds = pack.thresholds;
@@ -428,12 +547,14 @@
       return {
         status: 'not_found',
         language,
-        answer: localize(pack.messages.not_found, language),
+        answer: offlineUnavailableMessage(pack, language),
         citations: [],
         actions: ['get_human_help'],
         confidence,
         source: 'local',
+        answer_source: 'local',
         translation_fallback: false,
+        offline_general: true,
       };
     }
 
@@ -448,6 +569,20 @@
       const response = answerFromPassages(pack, selected, language, request.message);
       response.confidence = combined;
       return response;
+    }
+    if (!selected.length || combined < thresholds.low_confidence) {
+      return {
+        status: 'not_found',
+        language,
+        answer: offlineUnavailableMessage(pack, language),
+        citations: [],
+        actions: ['get_human_help'],
+        confidence: combined,
+        source: 'local',
+        answer_source: 'local',
+        translation_fallback: false,
+        offline_general: true,
+      };
     }
     const suggestions = (result.passages || []).slice(0, 3).map((p) => p.section);
     return {
@@ -585,6 +720,14 @@
     return idbGetAll(STORES.pending);
   }
 
+  async function discardPending(status) {
+    const items = await listPending(status || 'queued');
+    for (const item of items) {
+      await idbDelete(STORES.pending, item.id);
+    }
+    return { discarded: items.length };
+  }
+
   async function syncPending(apiUrl, { consent, onProgress } = {}) {
     if (!consent) {
       return { synced: 0, skipped: true, reason: 'consent_required' };
@@ -637,12 +780,97 @@
     return typeof navigator === 'undefined' ? true : navigator.onLine;
   }
 
+  function _newLocalId(prefix) {
+    return prefix + '_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  }
+
+  async function upsertConversation(conv) {
+    const record = Object.assign({
+      id: conv.id || _newLocalId('conv'),
+      owner_id: conv.owner_id || 'anon',
+      title: conv.title || 'New chat',
+      course_id: conv.course_id || '',
+      language: conv.language || 'auto',
+      created_at: conv.created_at || new Date().toISOString(),
+      updated_at: conv.updated_at || new Date().toISOString(),
+    }, conv);
+    await idbPut(STORES.conversations, record);
+    return record;
+  }
+
+  async function listLocalConversations(ownerId, q) {
+    const all = await idbGetAll(STORES.conversations);
+    const needle = String(q || '').toLowerCase().trim();
+    return all
+      .filter((c) => !ownerId || c.owner_id === ownerId)
+      .filter((c) => !needle || String(c.title || '').toLowerCase().includes(needle))
+      .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+  }
+
+  async function getLocalConversation(conversationId) {
+    return idbGet(STORES.conversations, conversationId);
+  }
+
+  async function deleteLocalConversation(conversationId) {
+    await idbDelete(STORES.conversations, conversationId);
+    const msgs = await idbGetAll(STORES.conversation_messages, 'by_conversation', conversationId);
+    for (const m of msgs) {
+      await idbDelete(STORES.conversation_messages, m.id);
+    }
+    return { deleted: true };
+  }
+
+  async function saveLocalMessage(message) {
+    const record = Object.assign({
+      id: message.id || _newLocalId('msg'),
+      conversation_id: message.conversation_id,
+      role: message.role || 'user',
+      content: message.content || '',
+      language: message.language || '',
+      provider: message.provider || '',
+      answer_source: message.answer_source || '',
+      source_type: message.source_type || '',
+      cache_hit: !!message.cache_hit,
+      citations: message.citations || [],
+      metadata: message.metadata || {},
+      created_at: message.created_at || new Date().toISOString(),
+    }, message);
+    await idbPut(STORES.conversation_messages, record);
+    const conv = await getLocalConversation(record.conversation_id);
+    if (conv) {
+      conv.updated_at = record.created_at;
+      if (record.role === 'user' && (!conv.title || conv.title === 'New chat')) {
+        const t = String(record.content || '').trim().replace(/\s+/g, ' ');
+        conv.title = t.length > 60 ? t.slice(0, 59) + '…' : (t || 'New chat');
+      }
+      await idbPut(STORES.conversations, conv);
+    }
+    return record;
+  }
+
+  async function listLocalMessages(conversationId) {
+    const msgs = await idbGetAll(STORES.conversation_messages, 'by_conversation', conversationId);
+    return msgs.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  }
+
+  async function clearCachedAnswers() {
+    const all = await idbGetAll(STORES.answers);
+    for (const row of all) {
+      await idbDelete(STORES.answers, row.id);
+    }
+    return { cleared: all.length };
+  }
+
   global.AlxOffline = {
     DB_VERSION,
     openDb,
     isQuotaError,
     retrieveLocal,
     answerLocally,
+    answerCacheId,
+    saveCachedAnswer,
+    getCachedAnswer,
+    clearCachedAnswers,
     savePack,
     getPack,
     getPackRecord,
@@ -652,8 +880,15 @@
     recordUnanswered,
     enqueuePending,
     listPending,
+    discardPending,
     syncPending,
     online,
     analyze,
+    upsertConversation,
+    listLocalConversations,
+    getLocalConversation,
+    deleteLocalConversation,
+    saveLocalMessage,
+    listLocalMessages,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

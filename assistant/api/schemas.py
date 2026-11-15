@@ -1,6 +1,6 @@
 """HTTP request/response bodies that are specific to the REST API (not domain entities)."""
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,8 @@ class JobCreateRequest(BaseModel):
         default_factory=list,
         description="Accessibility accommodations offered, e.g. ['Screen reader friendly', 'Flexible hours']",
     )
+    source_url: str = Field(..., description="Verified source URL for the vacancy (required)")
+    closing_date: str = Field(default="", description="YYYY-MM-DD closing date")
 
 
 class AccommodationRequest(BaseModel):
@@ -39,6 +41,7 @@ class SubscriptionRequest(BaseModel):
     channel: str = Field(..., description="'telegram' or 'sms'")
     contact: str = Field(..., description="Phone number or Telegram chat ID")
     category: str = Field(default="all", description="Job category preference")
+    consent: bool = Field(default=False, description="Explicit consent to receive job alerts")
 
 
 class SMSInboundRequest(BaseModel):
@@ -54,6 +57,12 @@ class IngestRequest(BaseModel):
     content: str = Field(..., description="Raw lesson text in Markdown or HTML")
     lesson_id: Optional[str] = Field(default=None, description="Lesson id; defaults to the lesson URL file name")
     lesson_title: Optional[str] = Field(default=None, description="Lesson title; defaults to the course title")
+    translations: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional per-language lesson text applied to every section, e.g. {'am': '...'}",
+    )
+    keywords_am: Optional[str] = Field(default=None, description="Optional Amharic keywords appended to every section")
+    synonyms: Optional[List[str]] = Field(default=None, description="Optional English synonyms appended to every section")
 
 
 class IngestResponse(BaseModel):

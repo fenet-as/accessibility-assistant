@@ -23,15 +23,24 @@ def test_concept_page_is_split_into_cited_sections():
 
 
 def test_bundled_chunks_match_the_concept_page(container):
-    """assistant/data/chunks.json must be regenerated (python -m assistant.ingest) after page edits."""
-    bundled = [c for c in container.courses.store.load() if c["scope"] == COURSE_SCOPE]
-    parsed = validate_chunks(parse_concept_file(SOURCE, get_settings().faq_translations_path))
-    strip = lambda chunks: [{k: v for k, v in c.items() if k != "revision"} for c in chunks]
+    """Official concept-page chunks must match a fresh parse (supplemental lessons are separate)."""
+    bundled = [
+        c for c in container.courses.store.load()
+        if c["scope"] == COURSE_SCOPE and c.get("lesson_id") == LESSON_ID
+    ]
+    # Embedded curated translations (no faq_translations.json required).
+    parsed = validate_chunks(parse_concept_file(SOURCE))
+    # Ignore revision and fields filled only at ingest time (source_kind defaults to course).
+    ignore = {"revision"}
+    strip = lambda chunks: [
+        {k: v for k, v in c.items() if k not in ignore}
+        for c in chunks
+    ]
     assert strip(bundled) == strip(parsed)
 
 
 def test_concept_page_chunks_carry_lesson_translations_and_stable_ids():
-    chunks = parse_concept_file(SOURCE, get_settings().faq_translations_path)
+    chunks = parse_concept_file(SOURCE)
     assert {c["lesson_id"] for c in chunks} == {LESSON_ID}
     assert all(c["id"] == f"va-1--{LESSON_ID}--{c['anchor'].lstrip('#')}" for c in chunks)
     ai = next(c for c in chunks if "artificial-intelligence" in c["anchor"])

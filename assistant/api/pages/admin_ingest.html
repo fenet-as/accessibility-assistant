@@ -337,6 +337,10 @@
         <a href="/docs">OpenAPI Spec (/docs)</a>
         <a href="/a11y-audit">Stage 1 Accessibility Gate (/a11y-audit)</a>
       </nav>
+      <p id="kb-meta" class="subtitle" style="margin-top:12px;" aria-live="polite">
+        Knowledge base: <strong id="kb-version">…</strong>
+        · <span id="kb-chunk-count">…</span> chunks in SQLite
+      </p>
     </header>
 
     <!-- WCAG Live Region for Status Feedback -->
@@ -510,11 +514,18 @@
 
           // Add to table
           const tr = document.createElement('tr');
+          const lessonCount = (c.lessons || []).length;
           const sectionsText = (c.sections || []).slice(0, 3).join(', ') + ((c.sections && c.sections.length > 3) ? '...' : '');
 
           tr.innerHTML = `
             <td><span class="code-id">${escapeHtml(c.course_id)}</span></td>
-            <td><strong>${escapeHtml(c.course_title)}</strong></td>
+            <td>
+              <strong>${escapeHtml(c.course_title)}</strong>
+              <div style="font-size:12px;color:#64748b;margin-top:4px;">
+                ${lessonCount} lesson${lessonCount === 1 ? '' : 's'}:
+                ${escapeHtml((c.lessons || []).join(', ') || '—')}
+              </div>
+            </td>
             <td><span class="chunk-count">${c.chunk_count} chunk${c.chunk_count === 1 ? '' : 's'}</span></td>
             <td style="font-size: 13px; color: #475569;" title="${escapeHtml((c.sections || []).join(', '))}">
               ${escapeHtml(sectionsText || 'Default')}
@@ -586,8 +597,12 @@
           throw new Error(data.detail || 'Course ingestion failed');
         }
 
-        showStatus(`Success! Ingested ${data.chunks_created} sections into "${data.course_id}". AI tutor is immediately ready to answer questions.`);
+        showStatus(
+          `Success! Ingested into SQLite: ${data.chunks_created} added, ${data.chunks_updated} updated `
+          + `(kb_version ${data.kb_version}). Tutor is ready immediately.`
+        );
         await refreshCourses();
+        await refreshKbMeta();
         document.getElementById('content').value = '';
       } catch (err) {
         showStatus('Error: ' + err.message, true);
@@ -669,8 +684,12 @@ Virtual Assistants can use Python's built-in os and shutil modules to organize c
           `;
         }
 
+        const confidence = data.confidence != null ? Number(data.confidence).toFixed(3) : '—';
         testResult.innerHTML = `
-          <div><strong>Status:</strong> <span class="badge" style="background:${data.status === 'answered' ? '#dcfce7' : '#fee2e2'}; color:${data.status === 'answered' ? '#166534' : '#991b1b'}">${data.status.toUpperCase()}</span></div>
+          <div><strong>Status:</strong> <span class="badge" style="background:${data.status === 'answered' ? '#dcfce7' : '#fee2e2'}; color:${data.status === 'answered' ? '#166534' : '#991b1b'}">${data.status.toUpperCase()}</span>
+          · <strong>Confidence:</strong> ${confidence}
+          · <strong>Source:</strong> ${escapeHtml(data.answer_source || data.provider || '—')}
+          </div>
           <div style="margin-top: 6px;"><strong>Answer:</strong> ${escapeHtml(data.answer)}</div>
           ${citationsHtml}
         `;
@@ -689,8 +708,19 @@ Virtual Assistants can use Python's built-in os and shutil modules to organize c
         .replace(/'/g, '&#39;');
     }
 
+    async function refreshKbMeta() {
+      try {
+        const res = await fetch('/api/health');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('kb-version').textContent = data.kb_version || '—';
+        document.getElementById('kb-chunk-count').textContent = String(data.indexed_chunks ?? '—');
+      } catch (_) { /* non-fatal */ }
+    }
+
     // Initial load
     refreshCourses();
+    refreshKbMeta();
   </script>
 </body>
 </html>

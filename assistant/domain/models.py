@@ -14,6 +14,7 @@ class ChatStatus(str, Enum):
     NEEDS_CLARIFICATION = "needs_clarification"
     NOT_FOUND = "not_found"
     NEEDS_HUMAN = "needs_human"
+    OUT_OF_SCOPE = "out_of_scope"
 
 
 class Citation(BaseModel):
@@ -36,9 +37,13 @@ class Passage(BaseModel):
     score: float = 0.0
     confidence: float = 0.0
     matched_terms: List[str] = Field(default_factory=list)
+    source_kind: str = "course"
 
     def to_citation(self) -> Citation:
-        return Citation(title=self.title, section=self.section, url=self.url)
+        title = self.title
+        if self.source_kind == "supplemental" and "Supplemental" not in title:
+            title = f"{title} (Supplemental notes)"
+        return Citation(title=title, section=self.section, url=self.url)
 
     def text_in(self, language: str) -> Optional[str]:
         return self.translations.get(language) or (self.text if language == "en" else None)
@@ -63,6 +68,10 @@ class ChatRequest(BaseModel):
         default_factory=list,
         description="Recent conversation turns from client localStorage for multi-turn contextual grounding",
     )
+    regenerate: bool = Field(
+        default=False,
+        description="When true, bypass the exact-answer cache and produce a fresh response",
+    )
 
     @property
     def simple(self) -> bool:
@@ -70,7 +79,9 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    status: ChatStatus = Field(..., description="answered | needs_clarification | not_found | needs_human")
+    status: ChatStatus = Field(
+        ..., description="answered | needs_clarification | not_found | needs_human | out_of_scope"
+    )
     language: str = Field(..., description="Response language code (en|am|ti|om|so|ar)")
     answer: str = Field(..., description="Grounded response text")
     citations: List[Citation] = Field(default_factory=list, description="Sources of the answer")
@@ -91,7 +102,33 @@ class ChatResponse(BaseModel):
     cache_hit: bool = Field(default=False, description="True when the response was served from exact-answer cache")
     answer_source: Optional[str] = Field(
         default=None,
-        description="cache | faq | cloud | local — how the answer was produced",
+        description="cache | faq | cloud | cloud_general | local | social | none — how the answer was produced",
+    )
+    source_type: Optional[str] = Field(
+        default=None,
+        description=(
+            "Learner-facing origin: course_grounded | general_knowledge | mixed | local_course | "
+            "faq | cache | social | careers | none"
+        ),
+    )
+    connectivity: Optional[str] = Field(
+        default=None,
+        description="online when served by the API; offline when answered from a local pack/cache",
+    )
+    course_id: Optional[str] = Field(
+        default=None,
+        description="Course scope the answer was grounded in (e.g. course:va-1)",
+    )
+    fallback_reason: Optional[str] = Field(
+        default=None,
+        description=(
+            "Why FAQ was used instead of Gemini: "
+            "timeout | error | server | auth | quota | citation_invalid | budget | unavailable"
+        ),
+    )
+    question_type: Optional[str] = Field(
+        default=None,
+        description="greeting | course | general | follow_up | career | unrelated | ambiguous",
     )
 
 

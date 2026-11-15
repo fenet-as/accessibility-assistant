@@ -3,13 +3,14 @@
  * Caches widget assets and offline course packs. Chat/escalate stay network-only.
  */
 /* eslint-disable no-restricted-globals */
-const CACHE_VERSION = 'alx-assistant-sw-v1';
+const CACHE_VERSION = 'alx-assistant-sw-v2';
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const PACK_CACHE = `${CACHE_VERSION}-packs`;
 
 const PRECACHE_URLS = [
   './assistant.js',
   './offline.js',
+  './voice-recorder.js',
   './sw.js',
   './shell.html',
 ];

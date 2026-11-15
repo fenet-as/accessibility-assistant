@@ -18,6 +18,8 @@ class AIProvider(Protocol):
         history: Optional[List[ConversationTurn]] = None,
         *,
         confidence: float = 0.0,
+        answer_mode: str = "course",
+        scope_confirmed: bool = True,
     ) -> ChatResponse:
-        """Answer strictly from the retrieved passages, or return a not-found response."""
+        """Answer from retrieved passages and/or general knowledge, per answer_mode."""
         ...

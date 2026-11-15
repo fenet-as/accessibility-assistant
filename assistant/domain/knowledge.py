@@ -55,6 +55,8 @@ class KnowledgeChunk(BaseModel):
     keywords_en: str = ""
     keywords_am: str = ""
     synonyms: List[str] = Field(default_factory=list)
+    # course = official Savanna lesson material; supplemental = study notes that expand coverage
+    source_kind: str = "course"
     content_hash: str = ""
     revision: int = 1
 
@@ -67,7 +69,17 @@ class KnowledgeChunk(BaseModel):
                 data["scope"] = data["course"]
             if not data.get("lesson_id") and data.get("title"):
                 data["lesson_id"] = slugify(data["title"])
+            if not data.get("source_kind"):
+                data["source_kind"] = "course"
         return data
+
+    @field_validator("source_kind")
+    @classmethod
+    def _valid_source_kind(cls, value: str) -> str:
+        value = (value or "course").strip().lower()
+        if value not in ("course", "supplemental"):
+            raise ValueError("must be 'course' or 'supplemental'")
+        return value
 
     @field_validator("id", "course", "title", "section", "lesson_id")
     @classmethod

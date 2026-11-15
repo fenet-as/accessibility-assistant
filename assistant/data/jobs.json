@@ -24,7 +24,11 @@
       "Flexible hours",
       "Screen reader friendly workflow",
       "Async text communication"
-    ]
+    ],
+    "source_url": "https://digitalbridge.et/jobs/job-va-01",
+    "verified_at": "2026-01-01T00:00:00",
+    "closing_date": "2099-12-31",
+    "status": "active"
   },
   {
     "@context": "https://schema.org/",
@@ -50,6 +54,10 @@
     "accommodationsOffered": [
       "Screen reader accessible tools",
       "Interview accommodations upon request"
-    ]
+    ],
+    "source_url": "https://digitalbridge.et/jobs/job-va-02",
+    "verified_at": "2026-01-01T00:00:00",
+    "closing_date": "2099-12-31",
+    "status": "active"
   }
 ]

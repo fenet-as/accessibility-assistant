@@ -49,6 +49,7 @@ SYNONYM_GROUPS: List[Tuple[str, ...]] = [
     ("help", "support", "assist", "aid", "ይረዳል", "ያግዛል", "ይደግፋል", "ድጋፍ"),
     ("job", "career", "employment", "profession", "role"),
     ("client", "customer"),
+    ("freelance", "freelancing", "freelancer", "ፍሪላንስ", "ፍሪላንሲንግ"),
     ("skill", "ability", "competence", "expertise"),
     ("future", "upcoming", "tomorrow"),
     ("tool", "software", "app", "application"),
@@ -130,6 +131,11 @@ def stem_english(token: str) -> str:
         token = token[:-3]
     elif token.endswith("ed") and len(token) > 4:
         token = token[:-2]
+    # difference / different → same stem so "what is the difference" matches "different from".
+    # Only strip -ence/-ent after a consonant+e/a pattern; leave "employment" alone.
+    if len(token) > 7 and token.endswith(("ference", "ferent")):
+        token = token[:-5] if token.endswith("ferent") else token[:-6]
+        # difference→differ, different→differ (ferent/ference stripped leaves "dif"+"fer" handled below)
     if token.endswith("e") and len(token) > 4:
         token = token[:-1]
     return token

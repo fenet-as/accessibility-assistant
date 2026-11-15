@@ -116,8 +116,15 @@ def test_high_confidence_answers_with_confidence(tutor):
     assert res.confidence >= 0.6
 
 
-def test_low_confidence_returns_not_found_with_human_help(tutor):
+def test_unrelated_question_gets_scope_reply_not_a_knowledge_gap(tutor):
     res = tutor.answer(ChatRequest(message="What is the capital of France?", scope="course:py"))
+    assert res.status == ChatStatus.OUT_OF_SCOPE
+    assert res.citations == []
+
+
+def test_course_question_without_evidence_returns_not_found_with_human_help(tutor):
+    res = tutor.answer(ChatRequest(message="What did the lesson teach about recursion?", scope="course:py"))
+    assert res.question_type == "course"
     assert res.status == ChatStatus.NOT_FOUND
     assert res.citations == [] and "get_human_help" in res.actions
 

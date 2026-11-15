@@ -218,7 +218,10 @@ class SMSAdapter:
         command = text.upper()
         session = f"sms-{sender}"
 
-        if command in HELP_COMMANDS:
+        if command in {"STOP", "UNSUBSCRIBE", "CANCEL"}:
+            self.container.careers.unsubscribe("sms", sender)
+            segments = ["ALX: You are unsubscribed from job alerts. Reply HELP for the menu."]
+        elif command in HELP_COMMANDS:
             segments = [MENU_EN]
         elif command in AMHARIC_COMMANDS:
             segments = [MENU_AM]
@@ -234,9 +237,8 @@ class SMSAdapter:
             request = ChatRequest(session=session, message=text, scope=self.container.settings.default_scope)
             response = self.container.tutor.answer(request)
             self.container.analytics.record_question(request, response)
-            if response.status == ChatStatus.NOT_FOUND:
-                from assistant.domain.messages import NOT_FOUND, localized
-                reply = localized(NOT_FOUND, response.language)
+            if response.status in (ChatStatus.NOT_FOUND, ChatStatus.OUT_OF_SCOPE):
+                reply = response.answer
             else:
                 reference = f" (Ref: {response.citations[0].section})" if response.citations else ""
                 reply = f"{response.answer}{reference}"

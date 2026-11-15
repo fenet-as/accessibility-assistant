@@ -12,12 +12,18 @@ from typing import Any, Dict, List, Optional
 
 from assistant import __version__
 from assistant.domain.language import UI_STRINGS, language_catalog
-from assistant.domain.messages import NEEDS_CLARIFICATION, NOT_FOUND, TRANSLATION_UNAVAILABLE
+from assistant.domain.messages import (
+    NEEDS_CLARIFICATION,
+    NOT_FOUND,
+    OFFLINE_GENERAL_UNAVAILABLE,
+    TRANSLATION_UNAVAILABLE,
+)
 from assistant.infrastructure.chunk_store import ChunkStore
 from assistant.infrastructure.retrieval import (
     CONFIDENCE_COVERAGE,
     CONFIDENCE_PHRASE,
     CONFIDENCE_TITLE,
+    SUPPLEMENTAL_RANK_PENALTY,
     SYNONYM_WEIGHT,
     WEIGHT_BM25,
     WEIGHT_COVERAGE,
@@ -69,6 +75,7 @@ def build_course_pack(
         },
         "ranking": {
             "synonym_weight": SYNONYM_WEIGHT,
+            "supplemental_rank_penalty": SUPPLEMENTAL_RANK_PENALTY,
             "weights": {
                 "bm25": WEIGHT_BM25,
                 "coverage": WEIGHT_COVERAGE,
@@ -89,13 +96,15 @@ def build_course_pack(
             "not_found": NOT_FOUND,
             "needs_clarification": NEEDS_CLARIFICATION,
             "translation_unavailable": TRANSLATION_UNAVAILABLE,
+            "offline_general_unavailable": OFFLINE_GENERAL_UNAVAILABLE,
         },
         "index": index.serialize(),
         "offline_capabilities": {
             "local_retrieval": True,
             "extractive_answers": True,
+            "cached_answers": True,
             "cloud_ai": False,
-            "note": "Offline mode searches downloaded course content only. It does not run cloud AI.",
+            "note": "Offline mode searches downloaded course content and saved answers only. It does not run cloud AI.",
         },
     }
 

@@ -1,5 +1,6 @@
 """Learner-facing copy shared by the web, Telegram and SMS channels (all six languages)."""
 
+import re
 from typing import Dict, List, Optional
 
 from assistant.domain.language import ui_string
@@ -35,6 +36,74 @@ NEEDS_CLARIFICATION: Dict[str, str] = {
     "om": "Kutaa barnootaa kam akka gaafattu hin beeku. Maaloo gaaffii kee irra deebi'ii barreessi, ykn kutaa armaan gadii keessaa filadhu.",
     "so": "Ma hubo qaybta casharka ee aad ula jeedo. Fadlan dib u qor, ama dooro mid ka mid ah qaybahan.",
     "ar": "لست متأكدًا أي جزء من الدورة تقصد. هل يمكنك إعادة صياغة السؤال أو اختيار أحد هذه الأقسام؟",
+}
+
+OUT_OF_SCOPE: Dict[str, str] = {
+    "en": (
+        "I'm Savanna's learning assistant, so I focus on your course and on topics like virtual assistant "
+        "work, freelancing, remote work, digital skills and careers. That question is outside what I can "
+        "help with here. Feel free to ask me anything about those topics!"
+    ),
+    "am": (
+        "እኔ የሳቫና የትምህርት ረዳት ነኝ፤ ትኩረቴ በትምህርትዎ እና እንደ ቨርቹዋል ረዳትነት፣ ፍሪላንሲንግ፣ የርቀት ሥራ፣ "
+        "ዲጂታል ክህሎቶች እና ሙያ ባሉ ርዕሶች ላይ ነው። ይህ ጥያቄ ከዚህ ወሰን ውጭ ነው። ስለነዚህ ርዕሶች ማንኛውንም ጥያቄ ይጠይቁኝ!"
+    ),
+    "ti": (
+        "ኣነ ናይ ሳቫና ትምህርቲ ሓጋዚ እየ፤ ኣቓልቦይ ኣብ ትምህርትኻን ከም ቨርቹዋል ኣሲስታንት ስራሕ፣ ፍሪላንሲንግ፣ "
+        "ካብ ርሑቕ ምስራሕ፣ ዲጂታላዊ ክእለትን ሞያን ዝኣመሰሉ ኣርእስታትን እዩ። እዚ ሕቶ ካብዚ ወሰን ወጻኢ እዩ። "
+        "ብዛዕባ እዞም ኣርእስታት ዝኾነ ሕቶ ሕተተኒ!"
+    ),
+    "om": (
+        "Ani gargaaraa barnootaa Savanna ti; xiyyeeffannaan koo barnoota keessan fi mata dureewwan akka hojii "
+        "gargaaraa virtuaalaa, hojii dhuunfaa (freelancing), hojii fagoo irraa, dandeettii dijitaalaa fi "
+        "hojii irratti. Gaaffiin kun daangaa kanaan ala. Mata dureewwan kanneen irratti gaaffii kamiyyuu na gaafadhu!"
+    ),
+    "so": (
+        "Waxaan ahay kaaliyaha waxbarashada Savanna; diiradaydu waa koorsadaada iyo mawduucyada sida shaqada "
+        "kaaliyaha casriga ah (VA), freelancing, shaqada fogaan, xirfadaha dijitaalka ah iyo xirfad-shaqo. "
+        "Su'aashani waa ka baxsan waxa aan halkan kaaga caawin karo. Wax kasta oo ku saabsan mawduucyadaas i weydii!"
+    ),
+    "ar": (
+        "أنا مساعد التعلّم في Savanna، وأركّز على دورتك وعلى مواضيع مثل عمل المساعد الافتراضي والعمل الحر "
+        "والعمل عن بُعد والمهارات الرقمية والمسار المهني. هذا السؤال خارج نطاق ما يمكنني المساعدة فيه هنا. "
+        "اسألني عن أي شيء في هذه المواضيع!"
+    ),
+}
+
+OFFLINE_GENERAL_UNAVAILABLE: Dict[str, str] = {
+    "en": (
+        "That question needs cloud AI or a saved answer, which are not available offline. "
+        "I can still search your downloaded course pack for lesson content, or you can ask again when you are online."
+    ),
+    "am": (
+        "ይህ ጥያቄ የደመና AI ወይም የተቀመጠ መልስ ይፈልጋል፤ ኦፍላይን አይገኙም። "
+        "የወረደውን የትምህርት ጥቅል መፈለግ እችላለሁ፣ ወይም ሲገናኙ እንደገና ይጠይቁ።"
+    ),
+    "ti": (
+        "እዚ ሕቶ ናይ ደመና AI ወይ ዝተቐመጠ መልሲ የድሊ፤ ኦፍላይን ኣይርከብን። "
+        "ዝወረደ ትሕዝቶ ትምህርቲ ክድልይ፣ ወይ ምስ ተራኸብካ ደጊምካ ሕተት።"
+    ),
+    "om": (
+        "Gaaffiin kun AI duumessaa ykn deebii kuufame barbaada; toora alaa hin argamu. "
+        "Paakii barnootaa buufame barbaaduun nan danda'a, ykn yeroo online taatu irra deebi'ii gaafadhu."
+    ),
+    "so": (
+        "Su'aashani waxay u baahan tahay AI daruureed ama jawaab la keydiyay; offline lama heli karo. "
+        "Weli waan ka raadin karaa xirmada casharka ee la soo dejiyay, ama markaad online noqoto dib u weydii."
+    ),
+    "ar": (
+        "هذا السؤال يحتاج إلى ذكاء اصطناعي سحابي أو إجابة محفوظة، وهما غير متاحين دون اتصال. "
+        "ما زال بإمكاني البحث في حزمة الدورة المُنزَّلة، أو أعد السؤال عند الاتصال."
+    ),
+}
+
+UNCLEAR_REFERENCE: Dict[str, str] = {
+    "en": "I'm not sure what you are referring to. Could you tell me which topic you mean?",
+    "am": "ምን እንደሚያመለክቱ እርግጠኛ አይደለሁም። የትኛውን ርዕስ ማለትዎ እንደሆነ ሊነግሩኝ ይችላሉ?",
+    "ti": "እንታይ ከም እተመልክት ኣይርግጸንን። ኣየናይ ኣርእስቲ ማለትካ ምዃኑ ክትነግረኒ ትኽእልዶ?",
+    "om": "Maal akka agarsiiftu hin mirkaneeffanne. Mata duree kam akka jechuu barbaadde natti himuu dandeessaa?",
+    "so": "Ma hubo waxa aad tilmaamayso. Ma ii sheegi kartaa mawduuca aad ula jeeddo?",
+    "ar": "لست متأكدًا مما تشير إليه. هل يمكنك أن تخبرني بالموضوع الذي تقصده؟",
 }
 
 TRANSLATION_UNAVAILABLE: Dict[str, str] = {
@@ -77,6 +146,8 @@ def not_found_response(language: str, confidence: Optional[float] = None) -> Cha
         citations=[],
         actions=[HUMAN_HELP_ACTION],
         confidence=confidence,
+        answer_source="none",
+        provider="none",
     )
 
 
@@ -89,6 +160,60 @@ def clarification_response(language: str, suggestions: List[str], confidence: Op
         actions=[CLARIFY_ACTION, HUMAN_HELP_ACTION],
         confidence=confidence,
         suggestions=suggestions,
+    )
+
+
+def out_of_scope_response(language: str, confidence: Optional[float] = None) -> ChatResponse:
+    """Course-scope policy decline: the question is off-topic, not merely missing from the course."""
+    return ChatResponse(
+        status=ChatStatus.OUT_OF_SCOPE,
+        language=language,
+        answer=localized(OUT_OF_SCOPE, language),
+        citations=[],
+        actions=[],
+        confidence=confidence,
+        answer_source="none",
+        provider="scope_policy",
+    )
+
+
+def unclear_reference_response(language: str, suggestions: List[str]) -> ChatResponse:
+    """A pronoun or 'explain this' with nothing earlier in the conversation to refer to."""
+    return ChatResponse(
+        status=ChatStatus.NEEDS_CLARIFICATION,
+        language=language,
+        answer="\n".join([localized(UNCLEAR_REFERENCE, language)] + [f"- {s}" for s in suggestions]),
+        citations=[],
+        actions=[CLARIFY_ACTION, HUMAN_HELP_ACTION],
+        suggestions=suggestions,
+    )
+
+
+COURSE_CHOICE: Dict[str, str] = {
+    "en": (
+        "I found more than one possible course for that name. "
+        "Please choose the course you mean (you can keep the same question):"
+    ),
+    "am": "ከአንድ በላይ ተመሳሳይ የኮርስ ስም አግኝቻለሁ። እባክዎ የሚፈልጉትን ኮርስ ይምረጡ (ጥያቄዎን እንዳለ ማቆየት ይችላሉ)፦",
+    "ti": "ካብ ሓደ ንላዕሊ ተመሳሳሊ ስም ኮርስ ረኺበ። በጃኹም ዝደለኹምዎ ኮርስ ምረጹ (ሕቶኹም ከም ዘሎ ክትሓልውዎ ትኽእሉ ኢኹም)፦",
+    "om": "Maqaa koorsii tokkoo ol argadhe. Maaloo koorsii barbaaddu filadhu (gaaffii kee akka jirutti qabachuu dandeessa):",
+    "so": "Waxaan helay in ka badan hal koors oo magacaas leh. Fadlan dooro koorsada aad ula jeedo (su'aasha waa la hayn karaa):",
+    "ar": "وجدت أكثر من دورة محتملة لهذا الاسم. يُرجى اختيار الدورة المقصودة (يمكنك الإبقاء على السؤال كما هو):",
+}
+
+
+def course_choice_response(language: str, suggestions: List[str]) -> ChatResponse:
+    """Ambiguous course-name match — ask the learner to pick a course."""
+    return ChatResponse(
+        status=ChatStatus.NEEDS_CLARIFICATION,
+        language=language,
+        answer="\n".join([localized(COURSE_CHOICE, language)] + [f"- {s}" for s in suggestions]),
+        citations=[],
+        actions=[CLARIFY_ACTION, HUMAN_HELP_ACTION],
+        suggestions=suggestions,
+        answer_source="none",
+        provider="course_matcher",
+        question_type="ambiguous",
     )
 
 
@@ -160,34 +285,47 @@ THANKS_REPLY: Dict[str, str] = {
 }
 
 
+# If these appear, the learner is asking about course content — never treat as pure greeting.
+# Course / academic intent — keep out of pure greetings like "ሰላም እንዴት ነህ".
+_CONTENT_INTENT = re.compile(
+    r"(?:^|[\s])(?:what|why|define|definition|explain|"
+    r"virtual|assistant|\bva\b|course|lesson|type|types|categor|"
+    r"ምን|ማለት|ስንት|ለምን|ቨርቹዋል|ረዳት|ትምህርት|"
+    r"እንታይ|gaaffii|waa'?ee|maxaa)(?:$|[\s?.!])",
+    re.IGNORECASE,
+)
+
+
 def _social_pattern_language(text: str, patterns: Dict[str, List[str]]) -> Optional[str]:
     """If the message is a short social phrase, return which language pattern matched."""
-    import re
+    import re as _re
 
     from assistant.domain.language import disambiguate_ethiopic
 
     lowered = text.strip().lower()
-    if len(lowered.split()) > 6:
+    words = lowered.split()
+    if len(words) > 6:
+        return None
+    # Real course questions that happen to contain "hey" / "ሰላም" must not short-circuit.
+    if len(words) > 2 and _CONTENT_INTENT.search(lowered):
         return None
     matches: List[str] = []
     for lang, phrases in patterns.items():
         for phrase in phrases:
             pattern = (
                 r"(?<![a-zA-Z\u1200-\u137F\u0600-\u06FF])"
-                + re.escape(phrase.lower())
+                + _re.escape(phrase.lower())
                 + r"(?![a-zA-Z\u1200-\u137F\u0600-\u06FF])"
             )
-            if re.search(pattern, lowered):
-                # Single-word greetings must be the whole message; longer phrases can match inside short pings.
-                word_count = len(lowered.split())
-                if len(phrase.split()) == 1 and word_count > 3:
+            if _re.search(pattern, lowered):
+                word_count = len(words)
+                # Single-word greetings only when the message is very short (≤2 tokens).
+                if len(phrase.split()) == 1 and word_count > 2:
                     continue
                 matches.append(lang)
                 break
     if not matches:
         return None
-    if len(matches) == 1:
-        return disambiguate_ethiopic(text, matches[0])
     return disambiguate_ethiopic(text, matches[0])
 
 
@@ -199,6 +337,8 @@ def greeting_response(language: str) -> ChatResponse:
         citations=[],
         actions=[],
         confidence=1.0,
+        provider="social",
+        answer_source="social",
     )
 
 
@@ -210,6 +350,8 @@ def farewell_response(language: str) -> ChatResponse:
         citations=[],
         actions=[],
         confidence=1.0,
+        provider="social",
+        answer_source="social",
     )
 
 
@@ -221,6 +363,8 @@ def thanks_response(language: str) -> ChatResponse:
         citations=[],
         actions=[],
         confidence=1.0,
+        provider="social",
+        answer_source="social",
     )
 
 

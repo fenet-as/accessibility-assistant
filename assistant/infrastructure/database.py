@@ -10,7 +10,9 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set
+
+from assistant.domain.knowledge import compute_kb_version
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS query_logs (
@@ -31,6 +33,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     channel TEXT NOT NULL,
     contact TEXT NOT NULL,
     category TEXT DEFAULT 'all',
+    consent INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -49,7 +52,20 @@ CREATE TABLE IF NOT EXISTS escalations (
     ticket_id TEXT UNIQUE NOT NULL,
     session_id TEXT NOT NULL,
     room_url TEXT NOT NULL,
-    status TEXT DEFAULT 'pending_tutor',
+    status TEXT DEFAULT 'open',
+    assigned_to TEXT,
+    language TEXT DEFAULT 'en',
+    topic TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sms_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    body TEXT NOT NULL,
+    status TEXT DEFAULT 'queued',
+    provider_id TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -65,9 +81,22 @@ CREATE TABLE IF NOT EXISTS jobs (
     qualifications TEXT,
     accommodations_json TEXT NOT NULL,
     raw_json TEXT NOT NULL,
+    source_url TEXT DEFAULT '',
+    verified_at TEXT DEFAULT '',
+    closing_date TEXT DEFAULT '',
+    status TEXT DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS job_alert_state (
+    contact_hash TEXT PRIMARY KEY,
+    channel TEXT NOT NULL,
+    contact TEXT NOT NULL,
+    last_notified_job_id TEXT DEFAULT '',
+    consent INTEGER DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS course_chunks (
     id TEXT PRIMARY KEY,
@@ -91,6 +120,49 @@ CREATE TABLE IF NOT EXISTS course_chunks (
 );
 CREATE INDEX IF NOT EXISTS idx_course_chunks_scope ON course_chunks(scope);
 CREATE INDEX IF NOT EXISTS idx_course_chunks_lesson ON course_chunks(scope, lesson_id);
+
+CREATE TABLE IF NOT EXISTS kb_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    kb_version TEXT NOT NULL DEFAULT '',
+    revision INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT OR IGNORE INTO kb_meta (id, kb_version, revision) VALUES (1, '', 0);
+
+CREATE TABLE IF NOT EXISTS channel_prefs (
+    contact_hash TEXT PRIMARY KEY,
+    channel TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'auto',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT 'New chat',
+    course_id TEXT NOT NULL DEFAULT 'course:va-1',
+    language TEXT NOT NULL DEFAULT 'auto',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_conversations_owner ON conversations(owner_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    language TEXT DEFAULT '',
+    provider TEXT DEFAULT '',
+    answer_source TEXT DEFAULT '',
+    source_type TEXT DEFAULT '',
+    cache_hit INTEGER DEFAULT 0,
+    citations_json TEXT NOT NULL DEFAULT '[]',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_conv ON conversation_messages(conversation_id, created_at);
 """
 
 
@@ -106,6 +178,31 @@ class Database:
         with self._connect() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(SCHEMA)
+            self._migrate(conn)
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """Additive migrations for existing SQLite files."""
+        job_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+        for column, ddl in (
+            ("source_url", "ALTER TABLE jobs ADD COLUMN source_url TEXT DEFAULT ''"),
+            ("verified_at", "ALTER TABLE jobs ADD COLUMN verified_at TEXT DEFAULT ''"),
+            ("closing_date", "ALTER TABLE jobs ADD COLUMN closing_date TEXT DEFAULT ''"),
+            ("status", "ALTER TABLE jobs ADD COLUMN status TEXT DEFAULT 'active'"),
+        ):
+            if column not in job_cols:
+                conn.execute(ddl)
+        esc_cols = {row[1] for row in conn.execute("PRAGMA table_info(escalations)").fetchall()}
+        for column, ddl in (
+            ("assigned_to", "ALTER TABLE escalations ADD COLUMN assigned_to TEXT"),
+            ("language", "ALTER TABLE escalations ADD COLUMN language TEXT DEFAULT 'en'"),
+            ("topic", "ALTER TABLE escalations ADD COLUMN topic TEXT"),
+        ):
+            if column not in esc_cols:
+                conn.execute(ddl)
+        sub_cols = {row[1] for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()}
+        if "consent" not in sub_cols:
+            conn.execute("ALTER TABLE subscriptions ADD COLUMN consent INTEGER DEFAULT 0")
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -136,17 +233,97 @@ class Database:
             (anonymize(session_id), message, language, status, topic, mode),
         )
 
-    def log_escalation(self, ticket_id: str, session_id: str, room_url: str) -> None:
+    def log_escalation(
+        self,
+        ticket_id: str,
+        session_id: str,
+        room_url: str,
+        *,
+        language: str = "en",
+        topic: str = "",
+        status: str = "open",
+    ) -> None:
         self._insert(
-            "INSERT INTO escalations (ticket_id, session_id, room_url) VALUES (?, ?, ?)",
-            (ticket_id, anonymize(session_id), room_url),
+            "INSERT INTO escalations (ticket_id, session_id, room_url, status, language, topic) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (ticket_id, anonymize(session_id), room_url, status, language, topic),
         )
 
-    def add_subscription(self, channel: str, contact: str, category: str = "all") -> int:
+    def update_escalation(self, ticket_id: str, *, status: Optional[str] = None, assigned_to: Optional[str] = None) -> bool:
+        with self._connect() as conn:
+            row = conn.execute("SELECT ticket_id FROM escalations WHERE ticket_id = ?", (ticket_id,)).fetchone()
+            if not row:
+                return False
+            if status is not None:
+                conn.execute("UPDATE escalations SET status = ? WHERE ticket_id = ?", (status, ticket_id))
+            if assigned_to is not None:
+                conn.execute("UPDATE escalations SET assigned_to = ? WHERE ticket_id = ?", (assigned_to, ticket_id))
+            return True
+
+    def get_escalation(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT ticket_id, session_id, room_url, status, assigned_to, language, topic, created_at "
+                "FROM escalations WHERE ticket_id = ?",
+                (ticket_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def log_sms_message(self, contact: str, direction: str, body: str, status: str = "queued", provider_id: str = "") -> int:
         return self._insert(
-            "INSERT INTO subscriptions (channel, contact, category) VALUES (?, ?, ?)",
-            (channel, contact, category),
+            "INSERT INTO sms_messages (contact, direction, body, status, provider_id) VALUES (?, ?, ?, ?, ?)",
+            (contact, direction, body[:500], status, provider_id),
         )
+
+    def update_sms_status(self, provider_id: str, status: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE sms_messages SET status = ? WHERE provider_id = ?",
+                (status, provider_id),
+            )
+            return cur.rowcount > 0
+
+    def add_subscription(self, channel: str, contact: str, category: str = "all", consent: bool = False) -> int:
+        return self._insert(
+            "INSERT INTO subscriptions (channel, contact, category, consent) VALUES (?, ?, ?, ?)",
+            (channel, contact, category, 1 if consent else 0),
+        )
+
+    def list_subscriptions(self, *, consented_only: bool = True) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            sql = "SELECT id, channel, contact, category, consent FROM subscriptions"
+            if consented_only:
+                sql += " WHERE consent = 1"
+            rows = conn.execute(sql).fetchall()
+            return [dict(row) for row in rows]
+
+    def remove_subscription(self, channel: str, contact: str) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM subscriptions WHERE channel = ? AND contact = ?",
+                (channel, contact),
+            )
+            return cur.rowcount
+
+    def set_alert_state(self, channel: str, contact: str, last_job_id: str, consent: bool = True) -> None:
+        contact_hash = anonymize(f"{channel}:{contact}")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO job_alert_state (contact_hash, channel, contact, last_notified_job_id, consent, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
+                "ON CONFLICT(contact_hash) DO UPDATE SET last_notified_job_id = excluded.last_notified_job_id, "
+                "consent = excluded.consent, updated_at = CURRENT_TIMESTAMP",
+                (contact_hash, channel, contact, last_job_id, 1 if consent else 0),
+            )
+
+    def get_alert_state(self, channel: str, contact: str) -> Optional[Dict[str, Any]]:
+        contact_hash = anonymize(f"{channel}:{contact}")
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT channel, contact, last_notified_job_id, consent FROM job_alert_state WHERE contact_hash = ?",
+                (contact_hash,),
+            ).fetchone()
+            return dict(row) if row else None
 
     def add_accommodation(self, job_id: str, accommodations: List[str], channel: str, value: str) -> int:
         return self._insert(
@@ -164,8 +341,9 @@ class Database:
         with self._connect() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO jobs "
-                "(id, title, company_name, description, location, country, employment_type, alternate_name, qualifications, accommodations_json, raw_json) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(id, title, company_name, description, location, country, employment_type, alternate_name, "
+                "qualifications, accommodations_json, raw_json, source_url, verified_at, closing_date, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job["id"],
                     job.get("title", ""),
@@ -178,6 +356,10 @@ class Database:
                     job.get("qualifications", ""),
                     json.dumps(accommodations),
                     json.dumps(job),
+                    job.get("source_url", ""),
+                    job.get("verified_at", ""),
+                    job.get("closing_date", job.get("validThrough", "")),
+                    job.get("status", "active"),
                 ),
             )
 
@@ -204,8 +386,30 @@ class Database:
         with self._connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
 
+    @staticmethod
+    def _chunk_row(c: Dict[str, Any]) -> tuple:
+        return (
+            c["id"],
+            c["scope"],
+            c["course"],
+            c.get("lesson_id", ""),
+            c["title"],
+            c["section"],
+            c.get("anchor", ""),
+            c["url"],
+            c.get("language", "en"),
+            c["text"],
+            json.dumps(c.get("translations", {})),
+            c.get("keywords_en", ""),
+            c.get("keywords_am", ""),
+            json.dumps(c.get("synonyms", [])),
+            c.get("content_hash", ""),
+            c.get("revision", 1),
+            json.dumps(c),
+        )
+
     def save_course_chunks(self, chunks: List[Dict[str, Any]]) -> None:
-        """Store or update course curriculum chunks in SQLite."""
+        """Store or update course curriculum chunks in SQLite (does not bump kb_meta)."""
         with self._connect() as conn:
             for c in chunks:
                 conn.execute(
@@ -213,25 +417,7 @@ class Database:
                     "id, scope, course, lesson_id, title, section, anchor, url, language, text, "
                     "translations_json, keywords_en, keywords_am, synonyms_json, content_hash, revision, raw_json, updated_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-                    (
-                        c["id"],
-                        c["scope"],
-                        c["course"],
-                        c.get("lesson_id", ""),
-                        c["title"],
-                        c["section"],
-                        c.get("anchor", ""),
-                        c["url"],
-                        c.get("language", "en"),
-                        c["text"],
-                        json.dumps(c.get("translations", {})),
-                        c.get("keywords_en", ""),
-                        c.get("keywords_am", ""),
-                        json.dumps(c.get("synonyms", [])),
-                        c.get("content_hash", ""),
-                        c.get("revision", 1),
-                        json.dumps(c),
-                    ),
+                    self._chunk_row(c),
                 )
 
     def list_course_chunks(
@@ -272,6 +458,85 @@ class Database:
                 cur = conn.execute("DELETE FROM course_chunks WHERE scope = ?", (scope,))
             return cur.rowcount
 
+    def get_kb_revision(self) -> int:
+        """Monotonic revision shared across workers; bumps on every corpus write."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT revision FROM kb_meta WHERE id = 1").fetchone()
+            return int(row["revision"]) if row else 0
+
+    def get_kb_version(self) -> str:
+        with self._connect() as conn:
+            row = conn.execute("SELECT kb_version FROM kb_meta WHERE id = 1").fetchone()
+            return row["kb_version"] if row else ""
+
+    def replace_lesson_chunks(
+        self,
+        remove_ids: Set[str],
+        new_chunks: List[Dict[str, Any]],
+    ) -> str:
+        """Atomically remove old lesson rows and insert replacements; bump kb_meta. Returns kb_version."""
+        with self._connect() as conn:
+            for chunk_id in remove_ids:
+                conn.execute("DELETE FROM course_chunks WHERE id = ?", (chunk_id,))
+            for c in new_chunks:
+                conn.execute(
+                    "INSERT OR REPLACE INTO course_chunks ("
+                    "id, scope, course, lesson_id, title, section, anchor, url, language, text, "
+                    "translations_json, keywords_en, keywords_am, synonyms_json, content_hash, revision, raw_json, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                    self._chunk_row(c),
+                )
+            rows = conn.execute("SELECT raw_json FROM course_chunks ORDER BY rowid ASC").fetchall()
+            all_chunks = [json.loads(row["raw_json"]) for row in rows]
+            kb_version = compute_kb_version(all_chunks)
+            conn.execute(
+                "UPDATE kb_meta SET kb_version = ?, revision = revision + 1, "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                (kb_version,),
+            )
+            return kb_version
+
+    def replace_all_course_chunks(self, chunks: List[Dict[str, Any]]) -> str:
+        """Replace the entire course corpus in one transaction; bump kb_meta. Returns kb_version."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM course_chunks")
+            for c in chunks:
+                conn.execute(
+                    "INSERT INTO course_chunks ("
+                    "id, scope, course, lesson_id, title, section, anchor, url, language, text, "
+                    "translations_json, keywords_en, keywords_am, synonyms_json, content_hash, revision, raw_json, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                    self._chunk_row(c),
+                )
+            kb_version = compute_kb_version(chunks)
+            conn.execute(
+                "UPDATE kb_meta SET kb_version = ?, revision = revision + 1, "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                (kb_version,),
+            )
+            return kb_version
+
+    def set_channel_language(self, channel: str, contact: str, language: str) -> None:
+        """Persist a channel language preference keyed by a hashed contact id."""
+        contact_hash = anonymize(f"{channel}:{contact}")
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO channel_prefs (contact_hash, channel, language, updated_at) "
+                "VALUES (?, ?, ?, CURRENT_TIMESTAMP) "
+                "ON CONFLICT(contact_hash) DO UPDATE SET language = excluded.language, "
+                "updated_at = CURRENT_TIMESTAMP",
+                (contact_hash, channel, language),
+            )
+
+    def get_channel_language(self, channel: str, contact: str) -> Optional[str]:
+        contact_hash = anonymize(f"{channel}:{contact}")
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT language FROM channel_prefs WHERE contact_hash = ?",
+                (contact_hash,),
+            ).fetchone()
+            return row["language"] if row else None
+
     def analytics_summary(self, top_n: int = 5) -> Dict[str, Any]:
         with self._connect() as conn:
             def scalar(sql: str) -> int:
@@ -308,3 +573,147 @@ class Database:
                 },
                 "escalations": scalar("SELECT COUNT(*) FROM escalations"),
             }
+
+    # --- Chat conversations (Phase 2 persistence) ---
+
+    def create_conversation(
+        self,
+        conversation_id: str,
+        owner_id: str,
+        *,
+        title: str = "New chat",
+        course_id: str = "course:va-1",
+        language: str = "auto",
+    ) -> Dict[str, Any]:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO conversations (id, owner_id, title, course_id, language) VALUES (?, ?, ?, ?, ?)",
+                (conversation_id, owner_id, title, course_id, language),
+            )
+        return self.get_conversation(conversation_id, owner_id)  # type: ignore[return-value]
+
+    def get_conversation(self, conversation_id: str, owner_id: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM conversations WHERE id = ? AND owner_id = ?",
+                (conversation_id, owner_id),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_conversations(self, owner_id: str, *, limit: int = 100, q: str = "") -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            if q.strip():
+                like = f"%{q.strip()}%"
+                rows = conn.execute(
+                    "SELECT DISTINCT c.* FROM conversations c "
+                    "LEFT JOIN conversation_messages m ON m.conversation_id = c.id "
+                    "WHERE c.owner_id = ? AND (c.title LIKE ? OR m.content LIKE ?) "
+                    "ORDER BY c.updated_at DESC LIMIT ?",
+                    (owner_id, like, like, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM conversations WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?",
+                    (owner_id, limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def rename_conversation(self, conversation_id: str, owner_id: str, title: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE conversations SET title = ?, updated_at = CURRENT_TIMESTAMP "
+                "WHERE id = ? AND owner_id = ?",
+                (title.strip() or "New chat", conversation_id, owner_id),
+            )
+            return cur.rowcount > 0
+
+    def delete_conversation(self, conversation_id: str, owner_id: str) -> bool:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM conversation_messages WHERE conversation_id IN "
+                "(SELECT id FROM conversations WHERE id = ? AND owner_id = ?)",
+                (conversation_id, owner_id),
+            )
+            cur = conn.execute(
+                "DELETE FROM conversations WHERE id = ? AND owner_id = ?",
+                (conversation_id, owner_id),
+            )
+            return cur.rowcount > 0
+
+    def touch_conversation(self, conversation_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (conversation_id,),
+            )
+
+    def add_message(
+        self,
+        message_id: str,
+        conversation_id: str,
+        role: str,
+        content: str,
+        *,
+        language: str = "",
+        provider: str = "",
+        answer_source: str = "",
+        source_type: str = "",
+        cache_hit: bool = False,
+        citations: Optional[List[Dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO conversation_messages "
+                "(id, conversation_id, role, content, language, provider, answer_source, source_type, "
+                "cache_hit, citations_json, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    message_id,
+                    conversation_id,
+                    role,
+                    content,
+                    language,
+                    provider,
+                    answer_source,
+                    source_type,
+                    1 if cache_hit else 0,
+                    json.dumps(citations or []),
+                    json.dumps(metadata or {}),
+                ),
+            )
+            conn.execute(
+                "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (conversation_id,),
+            )
+            row = conn.execute(
+                "SELECT * FROM conversation_messages WHERE id = ?", (message_id,)
+            ).fetchone()
+            return self._message_row(row)
+
+    def list_messages(self, conversation_id: str, owner_id: str) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            owned = conn.execute(
+                "SELECT 1 FROM conversations WHERE id = ? AND owner_id = ?",
+                (conversation_id, owner_id),
+            ).fetchone()
+            if not owned:
+                return []
+            rows = conn.execute(
+                "SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC",
+                (conversation_id,),
+            ).fetchall()
+            return [self._message_row(r) for r in rows]
+
+    @staticmethod
+    def _message_row(row: sqlite3.Row) -> Dict[str, Any]:
+        data = dict(row)
+        data["cache_hit"] = bool(data.get("cache_hit"))
+        try:
+            data["citations"] = json.loads(data.pop("citations_json") or "[]")
+        except json.JSONDecodeError:
+            data["citations"] = []
+        try:
+            data["metadata"] = json.loads(data.pop("metadata_json") or "{}")
+        except json.JSONDecodeError:
+            data["metadata"] = {}
+        return data

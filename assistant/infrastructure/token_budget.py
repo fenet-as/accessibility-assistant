@@ -42,7 +42,7 @@ def trim_passages_for_context(
     return selected or passages[:1]
 
 
-def trim_history_turns(history: List[ConversationTurn], *, max_turns: int = 3, max_tokens: int = 200) -> List[ConversationTurn]:
+def trim_history_turns(history: List[ConversationTurn], *, max_turns: int = 6, max_tokens: int = 600) -> List[ConversationTurn]:
     turns = [t for t in history if t.content][-max_turns:]
     while turns and sum(estimate_tokens(t.content) for t in turns) > max_tokens:
         turns = turns[1:]

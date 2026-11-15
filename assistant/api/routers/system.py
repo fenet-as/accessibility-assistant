@@ -8,9 +8,11 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 from assistant import __version__
 from assistant.api.dependencies import get_container
+from assistant.config import safe_ai_config_summary
 from assistant.container import Container
-from assistant.infrastructure.speech import stt_status
 from assistant.domain.language import AUTO, SUPPORTED_LANGUAGES, UI_STRINGS, language_catalog
+from assistant.infrastructure.answer_cache import PROMPT_VERSION
+from assistant.infrastructure.speech import stt_status
 
 PAGES_DIR = Path(__file__).resolve().parent.parent / "pages"
 HOME_PAGE = "/savanna/pages/concept-with-navigation.html"
@@ -22,8 +24,58 @@ def _page(name: str) -> FileResponse:
     return FileResponse(PAGES_DIR / name, media_type="text/html")
 
 
+def _ai_health(container: Container) -> Dict[str, Any]:
+    """Connectivity of the backend is not the same as Gemini or Whisper availability."""
+    settings = container.settings
+    provider = container.provider
+    status = provider.provider_status() if hasattr(provider, "provider_status") else {"name": provider.name}
+    generative = status.get("generative") if isinstance(status.get("generative"), dict) else status
+    gemini_configured = bool((settings.gemini_api_key or "").strip())
+    # When AI_PROVIDER is not cloud, Gemini may still be configured but unused.
+    if settings.ai_provider == "cloud":
+        gemini = {
+            "configured": gemini_configured,
+            "sdk_loaded": bool(generative.get("sdk_loaded")) if generative else False,
+            "model": settings.gemini_model,
+            "available": bool(generative.get("available")) if generative else False,
+            "status": generative.get("status", "unknown") if generative else "unknown",
+            "cooldown_until": generative.get("cooldown_until") if generative else None,
+            "cooldown_remaining_seconds": generative.get("cooldown_remaining_seconds", 0) if generative else 0,
+            "last_failure_reason": generative.get("last_failure_reason") if generative else None,
+        }
+    else:
+        gemini = {
+            "configured": gemini_configured,
+            "sdk_loaded": False,
+            "model": settings.gemini_model,
+            "available": False,
+            "status": "disabled",
+            "cooldown_until": None,
+            "cooldown_remaining_seconds": 0,
+            "last_failure_reason": None,
+        }
+    return {
+        "provider_setting": settings.ai_provider,
+        "runtime_provider": container.provider.name,
+        "prefer_extractive": bool(settings.prefer_extractive),
+        "prompt_version": PROMPT_VERSION,
+        # Kept for older clients; prefer gemini.available for readiness checks.
+        "gemini_configured": gemini_configured,
+        "gemini": gemini,
+        "provider": status,
+        "config": safe_ai_config_summary(settings),
+        "cache": {
+            "enabled": settings.enable_exact_cache,
+            "prompt_version": PROMPT_VERSION,
+            **container.cache.size_hint(),
+        },
+    }
+
+
 @router.get("/api/health", tags=["System"])
 def health(container: Container = Depends(get_container)) -> Dict[str, Any]:
+    speech = stt_status(container.settings)
+    ai = _ai_health(container)
     return {
         "status": "healthy",
         "provider": container.provider.name,
@@ -34,7 +86,24 @@ def health(container: Container = Depends(get_container)) -> Dict[str, Any]:
         "cache_backend": container.cache.backend,
         "exact_cache_enabled": container.settings.enable_exact_cache,
         "usage": container.usage.snapshot(),
-        "speech": stt_status(container.settings),
+        "speech": speech,
+        "rate_limit": container.rate_limiter.status(),
+        # Backend answered this request. Browser online/offline is a client concern.
+        "connectivity": {
+            "backend": "ok",
+            "internet": None,
+            "note": (
+                "backend=ok means this API is reachable. "
+                "Browser online state and Gemini/Whisper availability are separate."
+            ),
+        },
+        "ai": ai,
+        "services": {
+            "backend": "ok",
+            "gemini": ai["gemini"]["status"],
+            "whisper": "ready" if speech.get("server_stt") else "unavailable",
+            "cache": container.cache.backend,
+        },
     }
 
 
@@ -46,6 +115,20 @@ def usage_stats(container: Container = Depends(get_container)) -> Dict[str, Any]
         "cache_backend": container.cache.backend,
         "exact_cache_enabled": container.settings.enable_exact_cache,
         **container.usage.snapshot(),
+    }
+
+
+@router.get("/api/config", tags=["System"])
+def public_config(container: Container = Depends(get_container)) -> Dict[str, Any]:
+    """Safe AI/runtime configuration for operators and the widget (never includes API keys)."""
+    ai = _ai_health(container)
+    return {
+        "version": __version__,
+        "ai": ai,
+        "kb_version": container.tutor.kb_version,
+        "indexed_chunks": container.tutor.indexed_chunks,
+        "languages": list(SUPPORTED_LANGUAGES),
+        "restart_required_after_env_change": True,
     }
 
 

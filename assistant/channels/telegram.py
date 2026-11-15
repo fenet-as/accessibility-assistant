@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 import httpx
 
 from assistant.container import Container
+from assistant.domain.language import LANGUAGE_STATUS, LANGUAGES, SUPPORTED_LANGUAGES, language_status
 from assistant.domain.models import HUMAN_HELP_ACTION, ChatRequest, ChatStatus
 
 logger = logging.getLogger(__name__)
@@ -19,27 +20,42 @@ API_TIMEOUT_SECONDS = 10.0
 POLL_TIMEOUT_SECONDS = 25
 
 WELCOME = (
-    "👋 <b>Welcome to the ALX Learning & Career Assistant!</b>\n"
+    "<b>Welcome to the ALX Learning & Career Assistant!</b>\n"
     "እንኳን ወደ ALX የትምህርት እና የሥራ ረዳት በደህና መጡ!\n\n"
-    "You can ask me questions about your course materials in English or Amharic.\n"
+    "Ask course questions in any of the six supported languages.\n"
+    "Verified today: English, Amharic. Other languages are marked experimental.\n\n"
     "Commands:\n"
+    "• /lang - Choose language\n"
     "• /jobs - View accessible job postings\n"
     "• /human - Request live human tutor help\n"
     "• /help - Instructions"
 )
+
 LANGUAGE_SWITCHED = {
-    "am": "ቋንቋ ወደ አማርኛ ተቀይሯል። ጥያቄዎን ይጠይቁ።",
     "en": "Language switched to English. Ask your question.",
+    "am": "ቋንቋ ወደ አማርኛ ተቀይሯል። ጥያቄዎን ይጠይቁ።",
+    "ti": "ቋንቋ ናብ ትግርኛ ተቐይሩ (ፈተነ)። ሕቶኻ ሕተት።",
+    "om": "Afaan gara Afaan Oromoo jijjiirame (yaalii). Gaaffii kee gaafadhu.",
+    "so": "Luqadda waxaa loo beddelay Soomaali (tijaabo). Weydii su'aashaada.",
+    "ar": "تم تغيير اللغة إلى العربية (تجريبي). اطرح سؤالك.",
 }
+
+_LANG_BUTTONS = [
+    [{"text": f"{LANGUAGES[code].name_native}"
+      + ("" if language_status(code) == "verified" else " *"),
+      "callback_data": f"lang_{code}"}
+     for code in pair]
+    for pair in (("en", "am"), ("ti", "om"), ("so", "ar"))
+]
+
 START_KEYBOARD = {
-    "inline_keyboard": [
-        [{"text": "English", "callback_data": "lang_en"}, {"text": "አማርኛ", "callback_data": "lang_am"}],
-        [{"text": "💼 View Jobs", "callback_data": "jobs_view"},
-         {"text": "🆘 Human Help", "callback_data": "human_help"}],
+    "inline_keyboard": _LANG_BUTTONS + [
+        [{"text": "View Jobs", "callback_data": "jobs_view"},
+         {"text": "Human Help", "callback_data": "human_help"}],
     ]
 }
 HUMAN_HELP_KEYBOARD = {
-    "inline_keyboard": [[{"text": "Connect with Human Tutor 🆘", "callback_data": "human_help"}]]
+    "inline_keyboard": [[{"text": "Connect with Human Tutor", "callback_data": "human_help"}]]
 }
 CALLBACK_COMMANDS = {"human_help": "/human", "jobs_view": "/jobs"}
 
@@ -49,11 +65,31 @@ class TelegramAdapter:
         self.container = container
         self.token = container.settings.telegram_bot_token if token is None else token
         self.base_url = f"https://api.telegram.org/bot{self.token}" if self.token else ""
-        # Per-chat language preference; resets on restart, which only means auto-detect again.
+        # In-memory cache; SQLite channel_prefs is the durable source across restarts.
         self._chat_languages: Dict[int, str] = {}
 
     def is_configured(self) -> bool:
         return bool(self.token)
+
+    def _db(self):
+        return self.container.tutor.store.db
+
+    def _get_language(self, chat_id: int) -> str:
+        if chat_id in self._chat_languages:
+            return self._chat_languages[chat_id]
+        db = self._db()
+        if db is not None:
+            stored = db.get_channel_language("telegram", str(chat_id))
+            if stored:
+                self._chat_languages[chat_id] = stored
+                return stored
+        return "auto"
+
+    def _set_language_pref(self, chat_id: int, language: str) -> None:
+        self._chat_languages[chat_id] = language
+        db = self._db()
+        if db is not None:
+            db.set_channel_language("telegram", str(chat_id), language)
 
     async def get_me(self) -> Optional[Dict[str, Any]]:
         if not self.is_configured():
@@ -114,7 +150,7 @@ class TelegramAdapter:
         if not chat_id or not text:
             return {"status": "ignored"}
 
-        if text.startswith(("/start", "/help")):
+        if text.startswith(("/start", "/help", "/lang")):
             await self.send_message(chat_id, WELCOME, reply_markup=START_KEYBOARD)
             return {"action": "start", "chat_id": chat_id}
         if text.startswith("/human"):
@@ -122,22 +158,31 @@ class TelegramAdapter:
         if text.startswith("/jobs"):
             await self.send_message(chat_id, self.container.careers.telegram_summary())
             return {"action": "jobs", "chat_id": chat_id}
+        if text.startswith("/stop"):
+            self.container.careers.unsubscribe("telegram", str(chat_id))
+            await self.send_message(chat_id, "You are unsubscribed from job alerts. Send /start anytime.")
+            return {"action": "unsubscribe", "chat_id": chat_id}
         return await self._answer(chat_id, text)
 
     async def _set_language(self, chat_id: Optional[int], language: str) -> Dict[str, Any]:
-        if language not in LANGUAGE_SWITCHED:
+        if language not in SUPPORTED_LANGUAGES:
             return {"status": "ignored"}
         if chat_id:
-            self._chat_languages[chat_id] = language
-            await self.send_message(chat_id, LANGUAGE_SWITCHED[language])
+            self._set_language_pref(chat_id, language)
+            note = LANGUAGE_SWITCHED[language]
+            if LANGUAGE_STATUS.get(language) == "experimental":
+                note += "\n(Language status: experimental — answers may fall back to English source text.)"
+            await self.send_message(chat_id, note)
         return {"action": "set_language", "lang": language, "chat_id": chat_id}
 
     async def _escalate(self, chat_id: int) -> Dict[str, Any]:
-        language = self._chat_languages.get(chat_id, "en")
+        language = self._get_language(chat_id)
+        if language == "auto":
+            language = "en"
         escalation = self.container.escalations.create(f"tg-{chat_id}", language)
         url = html.escape(escalation.jitsi_room_url)
         await self.send_message(chat_id, (
-            "🆘 <b>Live Human Escalation / የቀጥታ ረዳት</b>\n\n"
+            "🆘 <b>Live Human Escalation</b>\n\n"
             f"{html.escape(escalation.message)}\n"
             "You are in full control of your screen sharing.\n\n"
             f"🔗 <b>Meeting Link:</b> <a href='{url}'>{url}</a>"
@@ -148,7 +193,7 @@ class TelegramAdapter:
         request = ChatRequest(
             session=f"tg-{chat_id}",
             message=text,
-            language=self._chat_languages.get(chat_id, "auto"),
+            language=self._get_language(chat_id),
             scope=self.container.settings.default_scope,
         )
         # Retrieval is CPU-bound; keep it off the event loop.
@@ -156,11 +201,15 @@ class TelegramAdapter:
         await asyncio.to_thread(self.container.analytics.record_question, request, response)
 
         reply = html.escape(response.answer)
+        if response.translation_fallback:
+            reply = f"<i>English source</i>\n{reply}"
         if response.citations:
             reply += "\n\n📚 <b>Citations:</b>\n" + "\n".join(
                 f"• {html.escape(c.title)} ({html.escape(c.section)})" for c in response.citations
             )
-        wants_human = HUMAN_HELP_ACTION in response.actions or response.status == ChatStatus.NOT_FOUND
+        wants_human = HUMAN_HELP_ACTION in response.actions or response.status in (
+            ChatStatus.NOT_FOUND, ChatStatus.NEEDS_CLARIFICATION,
+        )
         await self.send_message(chat_id, reply, reply_markup=HUMAN_HELP_KEYBOARD if wants_human else None)
         return {
             "action": "answer",
