@@ -1,4 +1,5 @@
 fastapi>=0.115.0
+python-multipart>=0.0.9
 uvicorn[standard]>=0.30.0
 pydantic>=2.8.0
 beautifulsoup4>=4.12.0
@@ -6,3 +7,7 @@ python-dotenv>=1.0.0
 httpx>=0.27.0
 # Only needed when AI_PROVIDER=cloud; the offline FAQ provider works without it.
 google-genai>=1.0.0
+# Optional: exact-answer cache and rate limiting in production (in-memory fallback when unset).
+redis>=5.0.0
+# Optional: POST /api/transcribe (Whisper) when OPENAI_API_KEY or WHISPER_API_KEY is set
+openai>=1.40.0

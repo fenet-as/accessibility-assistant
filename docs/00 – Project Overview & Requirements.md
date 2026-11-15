@@ -35,18 +35,18 @@ A reusable, accessible, multilingual assistant module (not a standalone chatbot)
 
 | # | Requirement | Covered in | Status |
 | --- | --- | --- | --- |
-| R1 | Tutor in Amharic and English, text and voice | 02, 03 | Planned |
-| R2 | Answers only from course content, with citations; admits when it cannot answer | 03 | Planned |
-| R3 | Web embed reusable on other sites | 02 | Planned |
-| R4 | Telegram bot with core tutoring and route to a human | 04 | Planned |
-| R5 | Low-bandwidth SMS or lightweight text route | 04 | Planned |
-| R6 | Chat announces new messages to assistive tech, handles RTL, keyboard, screen readers | 02 | Planned |
-| R7 | One-click human help with learner-controlled screen sharing | 05 | Planned |
-| R8 | Pluggable AI: cloud, local open model, offline FAQ | 03 | Planned |
-| R9 | Career Gateway: job alerts via Telegram and SMS | 04 | Planned |
-| R10 | Interview accommodation requests | 04 | Planned |
-| R11 | Answer job-related questions | 03, 04 | Planned |
-| R12 | Integration: script tag (L1), REST + OpenAPI (L2), standard such as LTI 1.3 / JobPosting (L3) | 02, 03, 04 | Planned |
+| R1 | Tutor in Amharic and English, text and voice | 02, 03 | Done (tested) — en/am verified; other languages experimental |
+| R2 | Answers only from course content, with citations; admits when it cannot answer | 03 | Done (tested) |
+| R3 | Web embed reusable on other sites | 02 | Done (tested) |
+| R4 | Telegram bot with core tutoring and route to a human | 04 | Done (tested) |
+| R5 | Low-bandwidth SMS or lightweight text route | 04 | Done (tested) |
+| R6 | Chat announces new messages to assistive tech, handles RTL, keyboard, screen readers | 02 | In progress — axe automated; NVDA/TalkBack pending co-designer |
+| R7 | One-click human help with learner-controlled screen sharing | 05 | Done (tested) — Jitsi room; learner starts share |
+| R8 | Pluggable AI: cloud, local open model, offline FAQ | 03 | Done (tested) — Gemini primary, FAQ fallback |
+| R9 | Career Gateway: job alerts via Telegram and SMS | 04 | Done (tested) — verified jobs + consent |
+| R10 | Interview accommodation requests | 04 | Done (tested) |
+| R11 | Answer job-related questions | 03, 04 | Done (tested) |
+| R12 | Integration: script tag (L1), REST + OpenAPI (L2), standard such as LTI 1.3 / JobPosting (L3) | 02, 03, 04 | Done (tested) |
 
 **Extra credit:** plain-language Simple Mode; teacher dashboard with no learner identities.
 

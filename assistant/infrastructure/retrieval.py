@@ -23,6 +23,10 @@ from assistant.infrastructure.text_analysis import analyze, phrase_bigrams, syno
 SYNONYM_WEIGHT = 0.6
 WEIGHT_BM25, WEIGHT_COVERAGE, WEIGHT_TITLE, WEIGHT_KEYWORD, WEIGHT_PHRASE = 0.40, 0.30, 0.15, 0.05, 0.10
 CONFIDENCE_COVERAGE, CONFIDENCE_TITLE, CONFIDENCE_PHRASE = 0.70, 0.15, 0.15
+# Prefer official course sections over supplemental study notes on near-ties.
+# Kept modest so uniquely-covered supplemental answers (e.g. "Where do VAs work?")
+# still win when official sections only match generic terms.
+SUPPLEMENTAL_RANK_PENALTY = 0.08
 
 
 def _matches_scope(chunk: Chunk, scope: Optional[str]) -> bool:
@@ -158,15 +162,20 @@ class BM25Index:
 
             rank = (WEIGHT_BM25 * raw / max_bm25 + WEIGHT_COVERAGE * coverage + WEIGHT_TITLE * title
                     + WEIGHT_KEYWORD * keyword + WEIGHT_PHRASE * phrase)
+            source_kind = (self.chunks[doc_id].get("source_kind") or "course").lower()
+            if source_kind == "supplemental":
+                rank = max(0.0, rank - SUPPLEMENTAL_RANK_PENALTY)
             bonus = CONFIDENCE_TITLE * title + CONFIDENCE_PHRASE * phrase
             confidence = min(1.0, CONFIDENCE_COVERAGE * coverage + bonus)
             bonuses[self.chunks[doc_id]["id"]] = bonus
-            scored.append((rank, raw, confidence, doc_id))
+            # Prefer official course material over supplemental notes on near-ties.
+            official = 1 if source_kind != "supplemental" else 0
+            scored.append((rank, official, raw, confidence, doc_id))
 
-        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
         passages = [
             self._to_passage(doc_id, rank, confidence, sorted(matched[doc_id]))
-            for rank, _, confidence, doc_id in scored[:top_k]
+            for rank, _, _, confidence, doc_id in scored[:top_k]
         ]
         return RetrievalResult(query_terms, passages, weights, bonuses)
 
@@ -218,4 +227,5 @@ class BM25Index:
             score=round(score, 3),
             confidence=round(confidence, 3),
             matched_terms=matched_terms,
+            source_kind=chunk.get("source_kind") or "course",
         )

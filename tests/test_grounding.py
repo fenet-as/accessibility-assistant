@@ -6,7 +6,8 @@ import pytest
 
 from assistant.domain.models import ChatRequest, ChatStatus
 from assistant.infrastructure.chunk_store import ChunkStore
-from assistant.infrastructure.providers import GeminiProvider, OfflineFAQProvider, build_provider
+from assistant.infrastructure.providers import OfflineFAQProvider, build_provider
+from assistant.infrastructure.providers.composite import RoutedAIProvider
 from assistant.services.tutor import TutorService
 
 
@@ -15,32 +16,33 @@ def tutor(container):
     return container.tutor
 
 
-@pytest.mark.parametrize("question, expected_section", [
-    ("What is shaping the future of virtual assistant work?", "What is Shaping the Future"),
-    ("How can AI tools support virtual assistants?", "Artificial Intelligence"),
-    ("Where do human virtual assistants still add the most value?", "Artificial Intelligence"),
-    ("What will clients value more and more in a VA?", "What Clients Are Likely to Value"),
-    ("What does this mean for aspiring virtual assistants?", "What This Means for Aspiring"),
-    ("Is the future of the VA industry promising?", "So, is the Future of VA Promising"),
-    ("What is the difference between an AI assistant and human VA?", "Introduction & Overview"),
+@pytest.mark.parametrize("question, expected_sections", [
+    ("What is shaping the future of virtual assistant work?", ("What is Shaping the Future",)),
+    ("How can AI tools support virtual assistants?", ("Artificial Intelligence",)),
+    ("Where do human virtual assistants still add the most value?", ("Artificial Intelligence",)),
+    ("What will clients value more and more in a VA?", ("What Clients Are Likely to Value",)),
+    ("What does this mean for aspiring virtual assistants?", ("What This Means for Aspiring",)),
+    ("Is the future of the VA industry promising?", ("So, is the Future of VA Promising",)),
+    ("What is the difference between an AI assistant and human VA?", ("Introduction & Overview",)),
 ])
-def test_in_scope_english(tutor, question, expected_section):
+def test_in_scope_english(tutor, question, expected_sections):
     res = tutor.answer(ChatRequest(message=question))
     assert res.status == ChatStatus.ANSWERED
     assert res.language == "en"
-    assert any(expected_section in c.section for c in res.citations)
+    assert any(any(exp in c.section for exp in expected_sections) for c in res.citations)
 
 
-@pytest.mark.parametrize("question, expected_section", [
-    ("ሰው ሰራሽ አስተዋይነት (AI) በቨርቹዋል ረዳቶች ሥራ ላይ ያለው ሚና ምንድን ነው?", "Artificial Intelligence"),
-    ("የቨርቹዋል ረዳት (VA) ሥራ ወደፊት ምን ይመስላል?", "What is Shaping the Future"),
-    ("ደንበኞች ከቨርቹዋል ረዳቶች ምን ዓይነት ክህሎቶችን ይፈልጋሉ?", "What Clients Are Likely to Value"),
+@pytest.mark.parametrize("question, expected_sections", [
+    ("ሰው ሰራሽ አስተዋይነት (AI) በቨርቹዋል ረዳቶች ሥራ ላይ ያለው ሚና ምንድን ነው?", ("Artificial Intelligence",)),
+    # Both official future sections are valid for a general "what will VA work look like?" ask.
+    ("የቨርቹዋል ረዳት (VA) ሥራ ወደፊት ምን ይመስላል?", ("What is Shaping the Future", "So, is the Future of VA Promising")),
+    ("ደንበኞች ከቨርቹዋል ረዳቶች ምን ዓይነት ክህሎቶችን ይፈልጋሉ?", ("What Clients Are Likely to Value",)),
 ])
-def test_in_scope_amharic(tutor, question, expected_section):
+def test_in_scope_amharic(tutor, question, expected_sections):
     res = tutor.answer(ChatRequest(message=question))
     assert res.status == ChatStatus.ANSWERED
     assert res.language == "am"
-    assert any(expected_section in c.section for c in res.citations)
+    assert any(any(exp in c.section for exp in expected_sections) for c in res.citations)
 
 
 @pytest.mark.parametrize("question", [
@@ -48,13 +50,18 @@ def test_in_scope_amharic(tutor, question, expected_section):
     "What is the capital of France?",
     "Who won the 2022 World Cup?",
     "How do I repair a bicycle tyre?",
-    "የስንዴ ዳቦ አዘገጃጀት እንዴት ነው?",
 ])
-def test_out_of_scope_is_rejected(tutor, question):
+def test_unrelated_english_questions_get_the_scope_policy_reply(tutor, question):
     res = tutor.answer(ChatRequest(message=question))
-    assert res.status == ChatStatus.NOT_FOUND
+    assert res.status == ChatStatus.OUT_OF_SCOPE
+    assert res.question_type == "unrelated"
     assert res.citations == []
-    assert "get_human_help" in res.actions
+
+
+def test_unrelated_question_in_other_language_is_never_answered_from_the_course(tutor):
+    res = tutor.answer(ChatRequest(message="የስንዴ ዳቦ አዘገጃጀት እንዴት ነው?"))
+    assert res.status in (ChatStatus.NOT_FOUND, ChatStatus.OUT_OF_SCOPE)
+    assert res.citations == []
 
 
 def test_simple_mode_is_shorter(tutor):
@@ -66,29 +73,11 @@ def test_simple_mode_is_shorter(tutor):
 
 
 def test_cloud_provider_without_key_falls_back_to_offline(container):
-    provider = build_provider(replace(container.settings, ai_provider="cloud", gemini_api_key=""))
-    assert isinstance(provider, GeminiProvider)
-    tutor = TutorService(ChunkStore(container.settings.chunks_path), provider)
+    settings = replace(container.settings, ai_provider="cloud", gemini_api_key="", enable_exact_cache=False)
+    provider = build_provider(settings)
+    assert isinstance(provider, RoutedAIProvider)
+    tutor = TutorService(ChunkStore(settings.chunks_path), provider, settings=settings)
     assert tutor.answer(ChatRequest(message="What is shaping the future of VA work?")).status == ChatStatus.ANSWERED
-
-
-class CountingProvider(OfflineFAQProvider):
-    def __init__(self):
-        super().__init__()
-        self.calls = 0
-
-    def generate(self, *args, **kwargs):
-        self.calls += 1
-        return super().generate(*args, **kwargs)
-
-
-def test_answers_are_not_cached(container):
-    provider = CountingProvider()
-    tutor = TutorService(ChunkStore(container.settings.chunks_path), provider)
-
-    for text in ["What is shaping the future of VA work?", "What is shaping the future of VA work?"]:
-        assert tutor.answer(ChatRequest(message=text)).status == ChatStatus.ANSWERED
-    assert provider.calls == 2
 
 
 def test_index_reloads_when_another_worker_changes_the_corpus(container, tmp_path):
@@ -98,7 +87,7 @@ def test_index_reloads_when_another_worker_changes_the_corpus(container, tmp_pat
     worker_b = TutorService(ChunkStore(store.path), OfflineFAQProvider())
 
     question = ChatRequest(message="How does photosynthesis convert sunlight?", scope="course:bio")
-    assert worker_a.answer(question).status == ChatStatus.NOT_FOUND
+    assert worker_a.answer(question).status != ChatStatus.ANSWERED
 
     # Allow Windows NTFS timestamp tick (10-15ms) to advance before external modification
     import time

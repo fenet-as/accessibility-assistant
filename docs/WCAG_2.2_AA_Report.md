@@ -4,15 +4,18 @@
 **Date of Audit:** November 13, 2026  
 **Evaluation Standard:** Web Content Accessibility Guidelines (WCAG) 2.2 Level AA  
 **Target Module:** ALX Digital Bridge Accessibility Assistant (`assistant.js`) & Savanna LMS Embed  
-**Evaluation Status:** **PASS** (Zero Critical or Serious axe-core violations)
+**Evaluation Status:** **PARTIAL** — automated axe-core evidence available; NVDA/TalkBack co-designer sessions not yet recorded as completed.
 
 ---
 
 ## 1. Executive Summary
 
-This report documents conformance with **WCAG 2.2 Level AA** for the ALX Multilingual Assistant, evaluated against both automated axe-core scanning and manual assistive-technology protocols (NVDA, TalkBack, keyboard-only, 200% zoom, sound off).
+This report documents progress toward **WCAG 2.2 Level AA** for the Savanna Multilingual Assistant.
 
-The assistant passed the mandatory Stage 1 Accessibility Gate with **0 critical** and **0 serious** violations.
+**Honest status (2026-11-14):**
+- Automated axe-core checks (widget + audit page) are wired and expected to report **0 critical / 0 serious** when run in CI/local browsers.
+- Manual NVDA (Windows) and TalkBack (Android) sessions with the co-designer are **scheduled / pending** — do not treat the rows below as completed passes until the co-designer signs them.
+- Keyboard-only, 200% zoom, RTL Arabic layout, reduced motion, and sound-off are covered by automated Playwright scenarios when Playwright is installed (`e2e/`).
 
 ---
 
@@ -20,12 +23,12 @@ The assistant passed the mandatory Stage 1 Accessibility Gate with **0 critical*
 
 | Tool / Technology | Version / Device | Test Scenario | Result |
 |---|---|---|---|
-| **axe-core** | v4.10+ | Automated DOM & Shadow DOM scan | **0 Critical / 0 Serious** |
-| **NVDA** | 2024.1 (Windows) | Voice reading of answers, focus trap prevention, live region announcements | **PASS** |
-| **TalkBack** | Android 14 | Gesture navigation, Ethiopic voice playback, touch targets >= 44px | **PASS** |
-| **Keyboard Only** | Chrome 131 / Edge | Tab navigation, Space/Enter activation, Escape key focus restoration | **PASS** |
-| **Zoom Testing** | 200% & 400% zoom | Viewport reflow at 320px width without horizontal scroll or truncated text | **PASS** |
-| **Sound Off** | Muted output | 100% of audio and status indicators have synchronized visual and text equivalents | **PASS** |
+| **axe-core** | bundled in `/widget/axe.min.js` | Automated DOM & Shadow DOM scan | Run via `/a11y-audit` and `e2e/` |
+| **NVDA** | TBD with co-designer | Voice reading of answers, live regions | **Pending co-designer** |
+| **TalkBack** | TBD with co-designer | Gesture navigation, Ethiopic speech | **Pending co-designer** |
+| **Keyboard Only** | Chromium (Playwright) | Tab navigation, Escape closes dialog | Automated when Playwright installed |
+| **Zoom Testing** | 200% | Reflow without clipped controls | Automated when Playwright installed |
+| **Sound Off** | Muted | Visual/text equivalents for voice states | Automated when Playwright installed |
 
 ---
 

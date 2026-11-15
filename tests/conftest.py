@@ -21,6 +21,9 @@ os.environ.update({
     "JOBS_PATH": str(_TMP_DIR / "jobs.json"),
     "TELEGRAM_BOT_TOKEN": "",
     "ADMIN_TOKEN": "",
+    "ALLOW_OPEN_ADMIN": "true",
+    "ENABLE_EXACT_CACHE": "true",
+    "REDIS_URL": "",
 })
 
 from fastapi.testclient import TestClient  # noqa: E402

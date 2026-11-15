@@ -10,7 +10,7 @@ from assistant.domain.language import (
     detect_language_with_confidence,
     language_catalog,
 )
-from assistant.domain.messages import NOT_FOUND, TRANSLATION_UNAVAILABLE, localized
+from assistant.domain.messages import OUT_OF_SCOPE, TRANSLATION_UNAVAILABLE, localized
 from assistant.domain.models import ChatRequest, ChatStatus
 from assistant.infrastructure.chunk_store import ChunkStore
 from assistant.infrastructure.providers import OfflineFAQProvider
@@ -95,8 +95,8 @@ def test_chat_honours_selected_language_for_answers_and_system_copy(client, lang
         "language": language,
         "scope": "course:va-1",
     }).json()
-    assert rejected["status"] == "not_found"
-    assert rejected["answer"] == localized(NOT_FOUND, language)
+    assert rejected["status"] == "out_of_scope"
+    assert rejected["answer"] == localized(OUT_OF_SCOPE, language)
 
 
 def test_offline_provider_never_invents_missing_translations(tmp_path, container):

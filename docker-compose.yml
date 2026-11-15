@@ -25,5 +25,12 @@ services:
     command: ["python", "-m", "assistant.channels.telegram"]
     profiles: ["telegram"]
 
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
 volumes:
   assistant-data:

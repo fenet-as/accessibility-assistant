@@ -12,7 +12,7 @@
 | Web embed, Telegram, low-bandwidth SMS | `<alx-assistant>` Shadow DOM widget, Telegram webhook/poller, SMS endpoint with 160/70-char segmenting |
 | Accessible chat | `role="log"` live region, `lang`/`dir` per message, full keyboard use, Escape restores focus |
 | One-click human help, learner-controlled screen share | `/api/escalate` creates a logged ticket and an unguessable Jitsi room the learner opens themselves |
-| Pluggable AI | `AI_PROVIDER=faq` (offline, free) or `cloud` (Gemini, auto-falls back to offline) |
+| Pluggable AI | `AI_PROVIDER=cloud` (Gemini primary, FAQ fallback) or `faq` (offline extractive) or `local` |
 | Career gateway | schema.org/JobPosting feed, job alerts, interview accommodation requests (no disclosure required) |
 | Extra credit | Simple Mode; teacher analytics with no learner identities |
 | Integration levels | L1 script tag, L2 REST + OpenAPI (`/docs`), L3 JobPosting JSON-LD and an LTI 1.3 manifest |

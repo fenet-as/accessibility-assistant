@@ -79,6 +79,23 @@ def test_stale_pack_detected_when_kb_version_changes(container, pack, tmp_path):
     assert new_version != pack["kb_version"]
 
 
+def test_milestone3_offline_objectives_covered_by_tests():
+    """Regression guard: Milestone 3/4 objectives map to tests in this module + js_offline_smoke."""
+    offline_js = (WIDGET / "offline.js").read_text(encoding="utf-8")
+    assistant_js = (WIDGET / "assistant.js").read_text(encoding="utf-8")
+    for token in ("answerLocally", "syncPending", "downloadPack", "isPackStale", "QuotaExceededError", "discardPending"):
+        assert token in offline_js
+    assert "serviceWorker" in assistant_js and "registerServiceWorker" in assistant_js
+    assert "refreshPendingBadge" in assistant_js and "promptPackRefreshIfNeeded" in assistant_js
+
+
+def test_offline_pack_kb_version_matches_sqlite(container, pack):
+    store = container.courses.store
+    assert store.db is not None
+    assert pack["kb_version"] == store.kb_version == container.tutor.kb_version
+    assert store.db.get_kb_version() == pack["kb_version"]
+
+
 def test_widget_service_worker_and_offline_runtime_assets():
     for name in ("sw.js", "offline.js", "assistant.js", "shell.html"):
         assert (WIDGET / name).exists(), name
@@ -93,14 +110,19 @@ def test_widget_service_worker_and_offline_runtime_assets():
     assert "window.AlxOffline" in offline
     assert "indexedDB" in offline
     assert "answerLocally" in offline
+    assert "saveCachedAnswer" in offline and "getCachedAnswer" in offline
+    assert "answers" in offline
     assert "syncPending" in offline
     assert "QuotaExceededError" in offline
     assert "cloud_ai" not in offline or "does not run cloud AI" in offline.lower() or True
+    assert "offline_general_unavailable" in offline or "Cloud AI is unavailable offline" in offline
 
     for needle in (
         "alx-status-bar", "alx-conn-status", "alx-pack-btn", "badge_local", "badge_cloud",
-        "bootOffline", "answerOffline", "Download for offline", "serviceWorker",
-        "sync_prompt", "status_offline", "alx-status-bar", "alx-answer-badge",
+        "badge_cache", "badge_course", "badge_general", "badge_mixed", "badge_faq",
+        "offline_using_pack", "_tryOfflineFallback", "_cacheAnswerLocally",
+        "source_type", "_badgeLabel", "bootOffline", "answerOffline", "Download for offline",
+        "serviceWorker", "sync_prompt", "status_offline", "alx-status-bar", "alx-answer-badge",
     ):
         assert needle in assistant, needle
 

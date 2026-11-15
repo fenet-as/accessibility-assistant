@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,6 +7,7 @@ from assistant.api.dependencies import get_container, require_admin
 from assistant.api.schemas import IngestRequest, IngestResponse
 from assistant.container import Container
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["Course Ingestion"], dependencies=[Depends(require_admin)])
 
 
@@ -14,6 +16,7 @@ def ingest_course(request: IngestRequest, container: Container = Depends(get_con
     """Add or update one lesson (Markdown or HTML); it is answerable immediately on every channel.
 
     Re-sending a lesson only rewrites the sections that changed; invalid content is rejected with 400.
+    Content is stored in SQLite (`course_chunks`) and the retrieval index reloads in-process.
     """
     try:
         result = container.courses.ingest(
@@ -24,9 +27,19 @@ def ingest_course(request: IngestRequest, container: Container = Depends(get_con
             lesson_url=request.lesson_url,
             lesson_id=request.lesson_id,
             lesson_title=request.lesson_title,
+            translations=request.translations,
+            keywords_am=request.keywords_am,
+            synonyms=request.synonyms,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Course ingestion failed: {exc}")
+    logger.info(
+        "admin ingest ok course=%s lesson=%s kb_version=%s added=%s",
+        request.course_id,
+        result.chunks[0]["lesson_id"],
+        result.kb_version,
+        result.added,
+    )
     return IngestResponse(
         status="success",
         course_id=request.course_id,
@@ -59,3 +72,11 @@ def delete_lesson(course_id: str, lesson_id: str, container: Container = Depends
     if not container.courses.delete_lesson(course_id, lesson_id):
         raise HTTPException(status_code=404, detail=f"Lesson '{lesson_id}' not found in '{course_id}'")
     return {"status": "deleted", "course_id": course_id, "lesson_id": lesson_id}
+
+
+@router.post("/cache/clear")
+def clear_answer_cache(container: Container = Depends(get_container)) -> Dict[str, Any]:
+    """Drop exact-answer cache entries so provider/model experiments are not masked."""
+    result = container.cache.clear()
+    logger.info("admin cleared answer cache backend=%s result=%s", container.cache.backend, result)
+    return {"status": "cleared", **result}

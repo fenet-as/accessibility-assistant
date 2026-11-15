@@ -14,7 +14,20 @@ from typing import Dict, List, Optional, Sequence, Tuple
 SUPPORTED_LANGUAGES: Tuple[str, ...] = ("en", "am", "ti", "om", "so", "ar")
 AUTO = "auto"
 
+# Honest readiness: only claim verified languages after real acceptance tests.
+LANGUAGE_STATUS: Dict[str, str] = {
+    "en": "verified",
+    "am": "verified",
+    "ti": "experimental",
+    "om": "experimental",
+    "so": "experimental",
+    "ar": "experimental",
+}
+
 ETHIOPIC_PATTERN = re.compile(r"[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]")
+# Disambiguate Amharic vs Tigrinya when both share Ge'ez script (e.g. ሰላም).
+_AMHARIC_HINT = re.compile(r"(እንዴት|እንደምን|እባክ|እባክዎ|ይህ|ያለው|ነው|ናቸው)")
+_TIGRINYA_HINT = re.compile(r"(ከመይ|ንስኻ|ንስኺ|ሓጋዚኺ|ሓጋዚኻ|እየ|እያ|ዝኾነ|ብዛዕባ)")
 ARABIC_PATTERN = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
 LATIN_PATTERN = re.compile(r"[A-Za-zÀ-öø-ÿ]")
 WORD_PATTERN = re.compile(r"[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]+|[\u0600-\u06FF]+|[A-Za-zÀ-öø-ÿ']+")
@@ -100,6 +113,19 @@ UI_STRINGS: Dict[str, Dict[str, str]] = {
         "escalate_fail": "Sorry, the help request could not be sent. Please try again.",
         "input_label": "Type your question",
         "detected": "Detected language",
+        "experimental": "experimental",
+        "english_source": "English source",
+        "badge_local": "Local answer",
+        "badge_cloud": "Cloud answer",
+        "badge_fallback": "Fallback answer",
+        "badge_cache": "Cached answer",
+        "badge_course": "Course-grounded answer",
+        "badge_general": "General knowledge",
+        "badge_mixed": "Mixed answer",
+        "badge_local_course": "Local course answer",
+        "badge_faq": "FAQ answer",
+        "badge_social": "Greeting",
+        "badge_careers": "Careers answer",
     },
     "am": {
         "launcher": "ረዳት ጠይቅ",
@@ -134,6 +160,8 @@ UI_STRINGS: Dict[str, Dict[str, str]] = {
         "escalate_fail": "ይቅርታ፣ የእርዳታ ጥያቄውን መላክ አልተቻለም። እባክዎ እንደገና ይሞክሩ።",
         "input_label": "ጥያቄዎን ይጻፉ",
         "detected": "የተለየ ቋንቋ",
+        "experimental": "ሙከራ",
+        "english_source": "የእንግሊዝኛ ምንጭ",
     },
     "ti": {
         "launcher": "ሓጋዚ ሕተት",
@@ -168,6 +196,8 @@ UI_STRINGS: Dict[str, Dict[str, str]] = {
         "escalate_fail": "ይቕሬታ፣ ሕቶ ሓገዝ ክለኣኽ ኣይከኣለን። ደጊምካ ፈትን።",
         "input_label": "ሕቶኻ ጸሓፍ",
         "detected": "ዝተለለየ ቋንቋ",
+        "experimental": "ፈተነ",
+        "english_source": "ምንጪ እንግሊዝኛ",
     },
     "om": {
         "launcher": "Gargaaraa Gaafadhu",
@@ -202,6 +232,8 @@ UI_STRINGS: Dict[str, Dict[str, str]] = {
         "escalate_fail": "Dhiifama, gaaffiin gargaarsaa erguu hin dandeenye. Irra deebi'ii yaali.",
         "input_label": "Gaaffii kee barreessi",
         "detected": "Afaan adda ba'e",
+        "experimental": "yaalii",
+        "english_source": "Madda Ingiliffaa",
     },
     "so": {
         "launcher": "Weeydii Macallinka",
@@ -236,6 +268,8 @@ UI_STRINGS: Dict[str, Dict[str, str]] = {
         "escalate_fail": "Waan ka xumahay, codsiga lama diri karin. Fadlan isku day mar kale.",
         "input_label": "Qor su'aashaada",
         "detected": "Luqadda la ogaaday",
+        "experimental": "tijaabo",
+        "english_source": "Ishaha Ingiriisiga",
     },
     "ar": {
         "launcher": "اسأل المساعد",
@@ -270,6 +304,8 @@ UI_STRINGS: Dict[str, Dict[str, str]] = {
         "escalate_fail": "عذرًا، تعذّر إرسال طلب المساعدة. يُرجى المحاولة مجددًا.",
         "input_label": "اكتب سؤالك",
         "detected": "اللغة المكتشفة",
+        "experimental": "تجريبي",
+        "english_source": "مصدر إنجليزي",
     },
 }
 
@@ -311,6 +347,10 @@ def ui_string(language: str, key: str) -> str:
     return pack.get(key, UI_STRINGS["en"].get(key, key))
 
 
+def language_status(code: str) -> str:
+    return LANGUAGE_STATUS.get(code, "experimental")
+
+
 def language_catalog() -> List[Dict[str, object]]:
     """Public description of every supported language for the widget and channels."""
     return [
@@ -322,6 +362,7 @@ def language_catalog() -> List[Dict[str, object]]:
             "direction": spec.direction,
             "speech_recognition": spec.speech_recognition,
             "speech_synthesis": spec.speech_synthesis,
+            "status": language_status(spec.code),
             "ui": UI_STRINGS[spec.code],
         }
         for spec in LANGUAGES.values()
@@ -354,6 +395,20 @@ def _marker_hits(words: Sequence[str], markers: Sequence[str]) -> float:
 
     hits = sum(1 for word in unique if any(matches(word, marker) for marker in marker_list))
     return hits / max(len(unique), 1)
+
+
+def disambiguate_ethiopic(text: str, preferred: str) -> str:
+    """Pick Amharic or Tigrinya when Ge'ez script alone is ambiguous."""
+    if not contains_ethiopic(text):
+        return preferred
+    if _AMHARIC_HINT.search(text):
+        return "am"
+    if _TIGRINYA_HINT.search(text):
+        return "ti"
+    if preferred in ("am", "ti"):
+        return preferred
+    # Hackathon default for Ethiopian learners on Savanna: Amharic before Tigrinya on ties.
+    return "am"
 
 
 def detect_language_with_confidence(text: str, requested: str = AUTO) -> LanguageDetection:
@@ -389,6 +444,8 @@ def detect_language_with_confidence(text: str, requested: str = AUTO) -> Languag
     confidence = min(1.0, max(0.2, 0.5 * best_score + 0.5 * (margin / max(best_score, 0.01))))
     if scripts.get(LANGUAGES[best_code].script, 0) < 0.2 and best_score < 0.15:
         return LanguageDetection("en", 0.4, signals={**scores, **scripts})
+    if contains_ethiopic(text):
+        best_code = disambiguate_ethiopic(text, best_code)
     return LanguageDetection(best_code, confidence, signals={**scores, **scripts})
 
 

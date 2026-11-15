@@ -43,6 +43,14 @@ if (unknown.status !== 'not_found' || (unknown.citations || []).length) {
   console.error('unknown question should be not_found', unknown);
   process.exit(1);
 }
+if (!/cloud AI|not available offline|downloaded course/i.test(unknown.answer || '')) {
+  console.error('unknown question should explain offline limits', unknown.answer);
+  process.exit(1);
+}
+if (typeof AlxOffline.saveCachedAnswer !== 'function' || typeof AlxOffline.getCachedAnswer !== 'function') {
+  console.error('cached answer helpers missing');
+  process.exit(1);
+}
 
 const am = AlxOffline.answerLocally(pack, {
   message: 'How can AI help virtual assistants?',

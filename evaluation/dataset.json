@@ -60,6 +60,14 @@
 
     {"id": "amb-01", "category": "ambiguous", "scope": "course:va-1", "query": "Tell me more", "expected_section": null, "accept": ["clarify", "not_found"]},
     {"id": "amb-02", "category": "ambiguous", "scope": "course:va-1", "query": "What about it?", "expected_section": null, "accept": ["clarify", "not_found"]},
-    {"id": "amb-03", "category": "ambiguous", "scope": "course:va-1", "query": "Can you explain this?", "expected_section": null, "accept": ["clarify", "not_found"]}
+    {"id": "amb-03", "category": "ambiguous", "scope": "course:va-1", "query": "Can you explain this?", "expected_section": null, "accept": ["clarify", "not_found"]},
+
+    {"id": "accept-01", "category": "acceptance", "scope": "course:va-1", "query": "What is freelancing?", "expected_section": "Freelancing and Employment Paths", "accept": ["answer"]},
+    {"id": "accept-02", "category": "acceptance", "scope": "course:va-1", "query": "Where do virtual assistants work?", "expected_section": "Where Do Virtual Assistants Work?", "accept": ["answer"]},
+    {"id": "accept-03", "category": "acceptance", "scope": "course:va-1", "query": "What skills does a virtual assistant need?", "expected_section": "Skills Clients Value", "accept": ["answer"]},
+    {"id": "accept-04", "category": "acceptance", "scope": "course:va-1", "query": "What is the difference between freelancing and remote employment?", "expected_section": "Freelancing and Employment Paths", "accept": ["answer"]},
+    {"id": "accept-05", "category": "acceptance", "scope": "course:va-1", "query": "How can I become a virtual assistant?", "expected_section": "Getting Started as a Virtual Assistant", "accept": ["answer"]},
+    {"id": "accept-06", "category": "acceptance", "scope": "course:va-1", "query": "What are the responsibilities of a virtual assistant?", "expected_section": "Common Virtual Assistant Responsibilities", "accept": ["answer"]},
+    {"id": "accept-07", "category": "acceptance", "scope": "course:va-1", "query": "ፍሪላንሲንግ ምንድን ነው?", "expected_section": "Freelancing and Employment Paths", "accept": ["answer"]}
   ]
 }

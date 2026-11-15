@@ -1,0 +1,49 @@
+{
+  "course_id": "course:va-1",
+  "course_title": "VA-1: VA Foundations & Professional Identity",
+  "official_lessons": [
+    {
+      "kind": "savanna_concept",
+      "source_kind": "course",
+      "path": "savanna-static/pages/concept-with-navigation.html",
+      "lesson_id": "concept-with-navigation",
+      "notes": "Official Savanna concept page — the only real lesson HTML in the repo."
+    }
+  ],
+  "supplemental_lessons": [
+    {
+      "kind": "markdown",
+      "source_kind": "supplemental",
+      "path": "assistant/data/lessons/va1_foundations.md",
+      "lesson_id": "va1-foundations",
+      "lesson_title": "VA Foundations: What Virtual Assistants Do",
+      "lesson_url": "/pages/va1-foundations.html",
+      "synonyms": [
+        "work from home",
+        "virtual assistant job"
+      ],
+      "keywords_am": "ቨርቹዋል ረዳት የርቀት ሥራ",
+      "notes": "Study notes that expand coverage. Not official Savanna HTML. Prefer official sections when both match."
+    },
+    {
+      "kind": "markdown",
+      "source_kind": "supplemental",
+      "path": "assistant/data/lessons/va1_tools_and_ai.md",
+      "lesson_id": "va1-tools-and-ai",
+      "lesson_title": "Tools, AI, and Client Work for Virtual Assistants",
+      "lesson_url": "/pages/va1-tools-and-ai.html",
+      "synonyms": [
+        "tools",
+        "software",
+        "chatgpt",
+        "ai tools",
+        "client communication",
+        "specialization",
+        "niche",
+        "remote habits"
+      ],
+      "keywords_am": "መሣሪያዎች AI ሰው ሰራሽ አስተዋይነት ደንበኛ ግንኙነት ልዩ ሙያ",
+      "notes": "Study notes that expand coverage. Not official Savanna HTML. Prefer official sections when both match."
+    }
+  ]
+}

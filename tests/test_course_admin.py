@@ -7,6 +7,12 @@ def ask(client, message, scope):
     return client.post("/api/chat", json={"session": "test-learner", "message": message, "scope": scope}).json()
 
 
+def assert_not_answered_from_course(response):
+    """Another course's content must never be used: no answer and no citations."""
+    assert response["status"] in ("not_found", "out_of_scope")
+    assert response["citations"] == []
+
+
 def test_slugify_converts_titles_to_safe_anchors():
     assert slugify("What is Shaping the Future of VA Work?") == "what-is-shaping-the-future-of-va-work"
     assert slugify("Introduction & Overview") == "introduction-overview"
@@ -63,10 +69,10 @@ def test_ingest_list_query_and_delete(client):
     scoped = ask(client, question, "course:python-auto-test")
     assert scoped["status"] == "answered"
     assert scoped["citations"][0]["url"].startswith("/curriculum/python-syntax.html")
-    assert ask(client, question, "course:va-1")["status"] == "not_found"
+    assert_not_answered_from_course(ask(client, question, "course:va-1"))
 
     assert client.delete("/api/admin/courses/course:python-auto-test").json()["status"] == "deleted"
-    assert ask(client, question, "course:python-auto-test")["status"] == "not_found"
+    assert_not_answered_from_course(ask(client, question, "course:python-auto-test"))
 
 
 def test_courses_are_isolated_from_each_other(client):
@@ -81,9 +87,9 @@ def test_courses_are_isolated_from_each_other(client):
         assert client.post("/api/admin/ingest", json=react).status_code == 200
 
         assert ask(client, python_q, "course:python-bi-test")["status"] == "answered"
-        assert ask(client, python_q, "course:react-bi-test")["status"] == "not_found"
+        assert_not_answered_from_course(ask(client, python_q, "course:react-bi-test"))
         assert ask(client, react_q, "course:react-bi-test")["status"] == "answered"
-        assert ask(client, react_q, "course:python-bi-test")["status"] == "not_found"
+        assert_not_answered_from_course(ask(client, react_q, "course:python-bi-test"))
     finally:
         client.delete("/api/admin/courses/course:python-bi-test")
         client.delete("/api/admin/courses/course:react-bi-test")

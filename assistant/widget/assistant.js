@@ -29,6 +29,34 @@
     });
   }
 
+  function ensureVoiceRecorder() {
+    return new Promise((resolve) => {
+      if (window.VoiceRecorder) { resolve(window.VoiceRecorder); return; }
+      const existing = document.querySelector('script[data-alx-voice-recorder]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.VoiceRecorder || null));
+        existing.addEventListener('error', () => resolve(null));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = (document.currentScript && document.currentScript.src)
+        ? document.currentScript.src.replace(/assistant\.js(\?.*)?$/, 'voice-recorder.js$1')
+        : '/widget/voice-recorder.js';
+      script.async = false;
+      script.setAttribute('data-alx-voice-recorder', '1');
+      script.onload = () => resolve(window.VoiceRecorder || null);
+      script.onerror = () => resolve(null);
+      document.head.appendChild(script);
+    });
+  }
+
+  function formatMmSs(ms) {
+    const total = Math.max(0, Math.floor((ms || 0) / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
 
   if (customElements.get('alx-assistant')) {
     return;
@@ -54,27 +82,75 @@
       placeholder: 'Ask a question about this lesson...', listening: 'Listening... Speak your question now',
       send: 'Send', send_aria: 'Send message', voice_aria: 'Voice input - Speak your question',
       voice_stop_aria: 'Stop listening - Microphone active', voice_unsupported: 'Voice input is not available in this browser',
+      transcribing: 'Transcribing your speech…', stt_failed: 'Could not transcribe audio. Type your question or try again.',
+      voice_needs_network: 'Voice input needs an internet connection.',
+      recording_limit: 'Recording stopped at the time limit. Review the transcript before sending.',
+      rec_pause: 'Pause', rec_resume: 'Resume', rec_stop: 'Stop', rec_discard: 'Discard',
+      rec_replay: 'Replay', rec_retry: 'Retry transcription', rec_edit: 'Edit transcript',
+      rec_uploading: 'Uploading audio…', rec_ready: 'Ready to review',
+      rec_permission: 'Waiting for microphone permission…',
+      rec_paused: 'Recording paused',
+      mic_permission_denied: 'Microphone permission denied. Allow the mic or type your question.',
+      mic_no_device: 'No microphone found. Type your question instead.',
+      mic_unsupported: 'Voice recording is not supported in this browser.',
+      copy: 'Copy', copied: 'Copied', retry: 'Retry', regenerate: 'Regenerate',
+      typing: 'Assistant is typing',
       listen: 'Listen', listen_aria: 'Listen - Read response aloud', stop: 'Stop', stop_aria: 'Stop - Stop reading aloud',
+      pause_tts: 'Pause', resume_tts: 'Resume',
       speak_unsupported: 'Read-aloud is not available for this language on this device',
       loading: 'Searching course material...',
       offline_error: 'Unable to reach the assistant server. You can connect with a live human helper using the button above.',
-      welcome: 'Hello! I am your course assistant. Ask me questions about this lesson. All answers are strictly grounded in course content.',
+      welcome: 'Hello! I am Savanna, your learning assistant. I help with course material, virtual assistant skills, freelancing, remote work, and careers. Course answers cite real lessons; general educational answers are labeled clearly.',
       citations: 'Course Citations:', citation_aria: 'Go to course source',
       escalate_confirm: 'Would you like to connect with a live tutor? A secure Jitsi meeting link will be created for you to share your screen with explicit consent.',
       escalate_ok: 'Human tutor request dispatched ({ticket})! When you are ready to share your screen, open the secure session: {url}',
       escalate_fail: 'Sorry, the help request could not be sent. Please try again.',
       input_label: 'Type your question', detected: 'Detected language',
       status_online: 'Online', status_offline: 'Offline', status_syncing: 'Synchronizing…',
-      badge_local: 'Local answer', badge_cloud: 'Cloud answer',
+      badge_local: 'Local course answer', badge_cloud: 'Gemini generated',
+      badge_fallback: 'FAQ fallback',
+      badge_cache: 'Cached AI answer',
+      badge_course: 'Course-grounded Gemini',
+      badge_general: 'Gemini generated',
+      badge_mixed: 'Mixed answer',
+      badge_local_course: 'Local course answer',
+      badge_faq: 'FAQ fallback',
+      badge_social: 'Greeting',
+      badge_careers: 'Careers answer',
       download_pack: 'Download for offline', downloading_pack: 'Downloading course pack…',
       pack_ready: 'Course pack ready offline', pack_error: 'Could not download the course pack',
       pack_quota: 'Not enough device storage for the course pack. Free space and try again.',
       pack_stale: 'Course update available — tap to refresh offline pack',
       sync_prompt: 'You have {n} queued offline request(s) that may include personal questions. Sync them to the server now?',
       sync_done: 'Synchronization complete ({n} sent)', sync_skip: 'Kept offline. Nothing was sent.',
+      pending_badge: '{n} waiting',
+      pending_send: 'Send queued questions',
+      pending_discard: 'Discard queued questions',
+      pack_refresh_prompt: 'A newer course pack is available (kb {remote}). Refresh offline pack now?',
       offline_no_pack: 'You are offline and this course is not downloaded yet. Open once online and tap Download for offline.',
       offline_ai_note: 'Offline mode uses downloaded course content only. Cloud AI is unavailable offline.',
+      offline_using_pack: 'Server unreachable — answering from your downloaded course pack.',
       loading_local: 'Searching downloaded course material…',
+      new_chat: 'New chat',
+      search_chats: 'Search chats',
+      chat_history: 'Chat history',
+      rename_chat: 'Rename',
+      delete_chat: 'Delete',
+      open_sidebar: 'Open chat history',
+      close_sidebar: 'Close chat history',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      previous_7_days: 'Previous 7 days',
+      older: 'Older',
+      suggestions_title: 'Try asking',
+      suggest_1: 'What is a virtual assistant?',
+      suggest_2: 'What skills do clients value?',
+      suggest_3: 'How do I get started as a VA?',
+      suggest_4: 'What is freelancing?',
+      empty_history: 'No saved chats yet',
+      composer_hint: 'Enter to send · Shift+Enter for a new line',
+      connectivity_ai_offline: 'Offline — course pack only (no Gemini)',
+      connectivity_ai_online: 'Online',
     },
     am: {
       launcher: 'ረዳት ጠይቅ', launcher_aria: 'ረዳት ጠይቅ - የትምህርት ረዳት', header: 'የALX የትምህርት ረዳት',
@@ -83,7 +159,20 @@
       close_aria: 'ረዳቱን ዝጋ', placeholder: 'ስለዚህ ትምህርት ጥያቄዎን ይጠይቁ...', listening: 'እያዳመጠ ነው... አሁን ይናገሩ',
       send: 'ላክ', send_aria: 'መልእክት ላክ', voice_aria: 'የድምጽ ግቤት - ጥያቄዎን ይናገሩ',
       voice_stop_aria: 'ማዳመጥ አቁም - ማይክሮፎን ንቁ ነው', voice_unsupported: 'የድምጽ ግቤት በዚህ አሳሽ አይገኝም',
+      transcribing: 'ድምጽዎ እየተተረጎመ ነው…', stt_failed: 'ድምጽ ሊተረጎም አልተቻለም። ጥያቄዎን ይጻፉ ወይም እንደገና ይሞክሩ።',
+      voice_needs_network: 'የድምጽ ግቤት የበይነመረብ ግንኙነት ይፈልጋል።',
+      recording_limit: 'ቀረጻው በጊዜ ገደብ ቆሟል። ከመላኩ በፊት ጽሑፉን ይመልከቱ።',
+      rec_pause: 'ለአፍታ አቁም', rec_resume: 'ቀጥል', rec_stop: 'አቁም', rec_discard: 'አስወግድ',
+      rec_replay: 'እንደገና አጫውት', rec_retry: 'ትርጉም እንደገና', rec_edit: 'ጽሑፉን አርትዕ',
+      rec_uploading: 'ድምጽ እየተላከ ነው…', rec_ready: 'ለመገምገም ዝግጁ',
+      rec_permission: 'የማይክሮፎን ፈቃድ በመጠባበቅ ላይ…', rec_paused: 'ቀረጻ ቆሟል',
+      mic_permission_denied: 'የማይክሮፎን ፈቃድ ተከልክሏል። ጥያቄዎን ይጻፉ።',
+      mic_no_device: 'ማይክሮፎን አልተገኘም። ጥያቄዎን ይጻፉ።',
+      mic_unsupported: 'የድምጽ ቀረጻ በዚህ አሳሽ አይደገፍም።',
+      copy: 'ቅዳ', copied: 'ተቀድቷል', retry: 'እንደገና ሞክር', regenerate: 'እንደገና ፍጠር',
+      typing: 'ረዳቱ እየጻፈ ነው',
       listen: 'አዳምጥ', listen_aria: 'አዳምጥ - መልሱን በድምጽ ያንብቡ', stop: 'አቁም', stop_aria: 'አቁም - ማንበብ አቁም',
+      pause_tts: 'ለአፍታ አቁም', resume_tts: 'ቀጥል',
       speak_unsupported: 'በዚህ መሣሪያ ለዚህ ቋንቋ ማንበብ አይገኝም', loading: 'መልስ እየተፈለገ ነው...',
       offline_error: 'ይቅርታ፣ ከአገልጋዩ ጋር መገናኘት አልተቻለም። እባክዎ የቀጥታ ረዳትን ያነጋግሩ ወይም እንደገና ይሞክሩ።',
       welcome: 'ሰላም! እኔ የትምህርት ረዳትዎ ነኝ። ስለዚህ ትምህርት ጥያቄዎችን ይጠይቁ። መልሶች ከትምህርቱ ይዘት ብቻ ናቸው።',
@@ -94,6 +183,7 @@
       input_label: 'ጥያቄዎን ይጻፉ', detected: 'የተለየ ቋንቋ',
       status_online: 'ኦንላይን', status_offline: 'ኦፍላይን', status_syncing: 'እየተመሳሰለ ነው…',
       badge_local: 'የአካባቢ መልስ', badge_cloud: 'የደመና መልስ',
+      badge_fallback: 'የመጠባበቂያ መልስ',
       download_pack: 'ለኦፍላይን አውርድ', downloading_pack: 'የትምህርት ጥቅል እየወረደ ነው…',
       pack_ready: 'የትምህርት ጥቅል ለኦፍላይን ዝግጁ ነው', pack_error: 'የትምህርት ጥቅሉን ማውረድ አልተቻለም',
       pack_quota: 'በመሣሪያው ላይ በቂ ቦታ የለም።', pack_stale: 'የትምህርት ዝማኔ አለ — ለማደስ ይጫኑ',
@@ -248,12 +338,131 @@
       .alx-launcher:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; border-color: var(--alx-primary); }
       .alx-launcher svg { width: 22px; height: 22px; fill: currentColor; flex-shrink: 0; }
       .alx-dialog {
-        position: fixed; bottom: 84px; right: 24px; z-index: 999999; width: 400px;
-        max-width: calc(100vw - 32px); height: 580px; max-height: calc(100vh - 110px);
+        --alx-dialog-w: min(720px, calc(100vw - 24px));
+        --alx-dialog-h: min(640px, calc(100vh - 100px));
+        position: fixed; bottom: 84px; right: 24px; z-index: 999999;
+        width: var(--alx-dialog-w); height: var(--alx-dialog-h);
+        max-width: calc(100vw - 16px); max-height: calc(100vh - 72px);
+        min-width: 300px; min-height: 360px;
         background: var(--alx-bg); border: 1px solid var(--alx-border); border-radius: var(--alx-radius);
         box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); display: flex; flex-direction: column; overflow: hidden;
       }
       .alx-dialog[hidden] { display: none !important; }
+      .alx-dialog[data-maximized="true"] {
+        top: 8px !important; right: 8px !important; bottom: 8px !important; left: 8px !important;
+        width: auto !important; height: auto !important; max-width: none; max-height: none;
+        border-radius: 10px;
+      }
+      .alx-resize-handle {
+        position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; z-index: 5;
+        cursor: nwse-resize; touch-action: none;
+        background:
+          linear-gradient(135deg, #94a3b8 0 2px, transparent 2px) no-repeat,
+          linear-gradient(135deg, #94a3b8 0 2px, transparent 2px) no-repeat;
+        background-size: 10px 10px, 6px 6px;
+        background-position: 4px 4px, 4px 4px;
+        border: none; padding: 0; border-radius: 4px;
+      }
+      .alx-resize-handle:focus-visible { outline: 2px solid var(--alx-focus); outline-offset: 1px; }
+      .alx-btn-resize {
+        background: transparent; border: 1px solid var(--alx-border); border-radius: 6px;
+        padding: 6px 8px; font-size: 12px; font-weight: 700; cursor: pointer; min-height: 36px;
+        color: var(--alx-text); font-family: inherit;
+      }
+      .alx-body { flex: 1; display: flex; min-height: 0; position: relative; }
+      .alx-sidebar {
+        width: 260px; flex-shrink: 0; border-right: 1px solid var(--alx-border);
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+        display: flex; flex-direction: column; min-height: 0;
+      }
+      .alx-sidebar[hidden] { display: none !important; }
+      .alx-sidebar-head { padding: 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--alx-border); }
+      .alx-btn-newchat {
+        width: 100%; min-height: 40px; border: none; border-radius: 8px; cursor: pointer;
+        background: var(--alx-primary); color: #fff; font-weight: 700; font-size: 13px; font-family: inherit;
+      }
+      .alx-btn-newchat:focus-visible { outline: 3px solid var(--alx-focus); outline-offset: 1px; }
+      .alx-search-chats {
+        width: 100%; padding: 8px 10px; border: 1px solid var(--alx-border); border-radius: 8px;
+        font: inherit; font-size: 12px; background: #fff; color: var(--alx-text);
+      }
+      .alx-conv-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+      .alx-conv-group-label {
+        font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+        color: var(--alx-text-muted); padding: 8px 6px 4px;
+      }
+      .alx-conv-item {
+        display: flex; align-items: center; gap: 4px; border-radius: 8px; border: 1px solid transparent;
+        background: transparent; padding: 2px;
+      }
+      .alx-conv-item.active { background: #fff; border-color: var(--alx-border); box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+      .alx-conv-open {
+        flex: 1; text-align: left; border: none; background: transparent; cursor: pointer;
+        padding: 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--alx-text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 36px;
+      }
+      .alx-conv-actions { display: flex; gap: 2px; }
+      .alx-conv-actions button {
+        border: none; background: transparent; cursor: pointer; font-size: 11px; min-width: 28px; min-height: 28px;
+        border-radius: 6px; color: var(--alx-text-muted); font-family: inherit;
+      }
+      .alx-conv-actions button:hover { background: #e2e8f0; }
+      .alx-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+      .alx-welcome-wrap { display: flex; flex-direction: column; gap: 12px; }
+      .alx-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .alx-suggestion {
+        border: 1px solid var(--alx-border); background: #fff; border-radius: 9999px;
+        padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+        color: var(--alx-text); min-height: 36px;
+      }
+      .alx-suggestion:hover { border-color: var(--alx-primary); color: var(--alx-primary); }
+      .alx-suggestion:focus-visible { outline: 3px solid var(--alx-focus); }
+      .alx-md p { margin: 0 0 0.55em; }
+      .alx-md p:last-child { margin-bottom: 0; }
+      .alx-md ul, .alx-md ol { margin: 0.35em 0 0.55em; padding-left: 1.25em; }
+      .alx-md code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em; background: #e2e8f0; padding: 0.1em 0.35em; border-radius: 4px;
+      }
+      .alx-md pre {
+        background: #0f172a; color: #e2e8f0; padding: 10px 12px; border-radius: 8px;
+        overflow-x: auto; font-size: 12px; line-height: 1.45;
+      }
+      .alx-md pre code { background: transparent; color: inherit; padding: 0; }
+      .alx-md strong { font-weight: 700; }
+      .alx-md a { color: var(--alx-primary); }
+      .alx-composer-wrap { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+      .alx-composer-hint { font-size: 11px; color: var(--alx-text-muted); }
+      .alx-input-form { align-items: flex-end; }
+      .alx-sidebar-backdrop {
+        display: none; position: absolute; inset: 0; background: rgba(15,23,42,0.35); z-index: 2;
+      }
+      .alx-sidebar-backdrop[data-open="true"] { display: block; }
+      @media (max-width: 720px) {
+        .alx-sidebar {
+          position: absolute; inset: 0 auto 0 0; z-index: 3; width: min(280px, 86vw);
+          box-shadow: 8px 0 24px rgba(15,23,42,0.18);
+        }
+        .alx-dialog {
+          --alx-dialog-w: calc(100vw - 12px);
+          --alx-dialog-h: calc(100vh - 84px);
+          right: 6px; bottom: 70px; left: auto;
+          width: var(--alx-dialog-w); height: var(--alx-dialog-h);
+        }
+        .alx-resize-handle { display: none; }
+      }
+      @media (max-width: 480px) {
+        .alx-dialog {
+          top: 0; right: 0; bottom: 0; left: 0;
+          width: 100vw !important; height: 100vh !important;
+          max-width: 100vw; max-height: 100vh;
+          border-radius: 0; bottom: 0;
+        }
+        .alx-launcher { right: 12px; bottom: 12px; }
+        .alx-header-title { font-size: 14px; }
+        .alx-status-bar { flex-wrap: wrap; }
+        .alx-resize-handle, .alx-btn-resize { display: none; }
+      }
       .alx-dialog[dir="rtl"] .alx-bubble-user { align-self: flex-start; border-bottom-right-radius: 12px; border-bottom-left-radius: 2px; }
       .alx-dialog[dir="rtl"] .alx-bubble-assistant { align-self: flex-end; border-bottom-left-radius: 12px; border-bottom-right-radius: 2px; }
       .alx-header {
@@ -312,7 +521,8 @@
       .alx-input-form { display: flex; gap: 8px; }
       .alx-input-field {
         flex: 1; padding: 10px 12px; font-size: 14px; border: 1px solid var(--alx-border);
-        border-radius: 6px; background: #ffffff; color: var(--alx-text); font-family: inherit;
+        border-radius: 10px; background: #ffffff; color: var(--alx-text); font-family: inherit;
+        resize: none; min-height: 44px; max-height: 140px; line-height: 1.4;
       }
       .alx-input-field:focus-visible { outline: 3px solid var(--alx-focus); outline-offset: -1px; }
       .alx-btn-send {
@@ -341,8 +551,66 @@
       .alx-btn-speak:focus-visible { outline: 2px solid var(--alx-focus); }
       .alx-btn-speak.speaking { background-color: #eff6ff; border-color: var(--alx-primary); color: var(--alx-primary); }
       .alx-voice-note { font-size: 11px; color: var(--alx-text-muted); margin-top: 6px; }
+      .alx-rec-bar {
+        display: none; flex-wrap: wrap; align-items: center; gap: 8px;
+        margin-top: 8px; padding: 8px 10px; border: 1px solid #fecaca; border-radius: 8px; background: #fff1f2;
+      }
+      .alx-rec-bar[data-active="true"] { display: flex; }
+      .alx-rec-dot {
+        width: 10px; height: 10px; border-radius: 50%; background: #dc2626;
+        animation: alx-pulse 1.2s infinite ease-in-out;
+      }
+      .alx-rec-dot.paused { background: #ca8a04; animation: none; }
+      .alx-rec-timer { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; color: #991b1b; min-width: 3rem; }
+      .alx-rec-meter { flex: 1 1 60px; height: 8px; border-radius: 9999px; background: #fecaca; overflow: hidden; min-width: 48px; }
+      .alx-rec-meter > span { display: block; height: 100%; width: 0%; background: #dc2626; transition: width 80ms linear; }
+      .alx-rec-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+      .alx-rec-actions button {
+        min-height: 44px; min-width: 44px; padding: 6px 12px; border-radius: 6px;
+        border: 1px solid var(--alx-border); background: #fff; color: var(--alx-text);
+        font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      }
+      .alx-rec-actions button:focus-visible { outline: 2px solid var(--alx-focus); }
+      .alx-rec-actions .alx-rec-stop { background: #dc2626; color: #fff; border-color: #b91c1c; }
+      .alx-review-panel {
+        display: none; flex-direction: column; gap: 8px; margin-top: 8px;
+        padding: 10px; border: 1px solid var(--alx-border); border-radius: 8px; background: #f8fafc;
+      }
+      .alx-review-panel[data-active="true"] { display: flex; }
+      .alx-review-panel textarea {
+        width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--alx-border);
+        border-radius: 6px; padding: 8px; font: inherit; color: var(--alx-text); box-sizing: border-box;
+      }
+      .alx-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+      .alx-review-actions button {
+        min-height: 44px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--alx-border);
+        background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      }
+      .alx-review-actions .alx-review-send { background: var(--alx-primary); color: #fff; border-color: var(--alx-primary); }
+      .alx-typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+      .alx-typing span {
+        width: 6px; height: 6px; border-radius: 50%; background: #94a3b8;
+        animation: alx-bounce 1.2s infinite ease-in-out;
+      }
+      .alx-typing span:nth-child(2) { animation-delay: 0.15s; }
+      .alx-typing span:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes alx-bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+        40% { transform: translateY(-4px); opacity: 1; }
+      }
+      .alx-msg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .alx-msg-actions button {
+        min-height: 32px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--alx-border);
+        background: #fff; color: var(--alx-text-muted); font-size: 11px; font-weight: 600;
+        cursor: pointer; font-family: inherit;
+      }
+      .alx-msg-actions button:focus-visible { outline: 2px solid var(--alx-focus); }
+      .alx-answer-badge.fallback { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+      .alx-bubble-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
       @media (prefers-reduced-motion: reduce) {
-        .alx-launcher, .alx-dialog, .alx-btn-voice.listening { transition: none !important; animation: none !important; }
+        .alx-launcher, .alx-dialog, .alx-btn-voice.listening, .alx-rec-dot, .alx-typing span {
+          transition: none !important; animation: none !important;
+        }
       }
       .alx-status-bar {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -369,11 +637,13 @@
       }
       .alx-answer-badge.local { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
       .alx-answer-badge.cloud { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-      @media (max-width: 420px) {
-        .alx-dialog { width: calc(100vw - 16px); right: 8px; bottom: 72px; height: calc(100vh - 96px); }
-        .alx-launcher { right: 12px; bottom: 12px; }
-        .alx-status-bar { flex-wrap: wrap; }
-      }
+      .alx-answer-badge.fallback { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+      .alx-answer-badge.cache { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+      .alx-answer-badge.general { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+      .alx-answer-badge.mixed { background: #fdf4ff; color: #a21caf; border: 1px solid #f5d0fe; }
+      .alx-answer-badge.faq { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+      .alx-answer-badge.careers { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+      .alx-answer-badge.social { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
     </style>
 
     <button type="button" class="alx-launcher" id="alx-launcher" aria-haspopup="dialog" aria-expanded="false" aria-label="Ask Tutor - AI Learning Assistant">
@@ -393,16 +663,30 @@
           <span class="alx-scope-badge" id="alx-scope-badge" aria-label="Course scope">VA-1</span>
         </h2>
         <div class="alx-header-controls">
+          <button type="button" class="alx-btn-icon" id="alx-sidebar-btn" title="Open chat history" aria-label="Open chat history" aria-expanded="false">☰</button>
           <label class="alx-lang-label" for="alx-lang-select" id="alx-lang-label">Language</label>
           <select class="alx-lang-select" id="alx-lang-select" aria-label="Select response language"></select>
-          <button type="button" class="alx-btn-icon" id="alx-clear-btn" title="Clear chat history" aria-label="Clear chat history">🗑️</button>
+          <button type="button" class="alx-btn-icon" id="alx-newchat-btn" title="New chat" aria-label="New chat">＋</button>
+          <button type="button" class="alx-btn-resize" id="alx-maximize-btn" title="Expand chat" aria-label="Expand chat">⛶</button>
           <button type="button" class="alx-btn-icon" id="alx-close-btn" aria-label="Close Assistant">✕</button>
         </div>
       </div>
 
-
+      <div class="alx-body">
+        <div class="alx-sidebar-backdrop" id="alx-sidebar-backdrop" data-open="false" hidden></div>
+        <aside class="alx-sidebar" id="alx-sidebar" aria-label="Chat history">
+          <div class="alx-sidebar-head">
+            <button type="button" class="alx-btn-newchat" id="alx-sidebar-new">New chat</button>
+            <input type="search" class="alx-search-chats" id="alx-search-chats" placeholder="Search chats" aria-label="Search chats" />
+          </div>
+          <div class="alx-conv-list" id="alx-conv-list" role="list"></div>
+        </aside>
+        <div class="alx-main">
       <div class="alx-status-bar" id="alx-status-bar" role="status" aria-live="polite">
         <span class="alx-status-pill online" id="alx-conn-status"><span class="alx-status-dot" aria-hidden="true"></span><span id="alx-conn-label">Online</span></span>
+        <span class="alx-status-pill offline" id="alx-pending-badge" hidden></span>
+        <button type="button" class="alx-btn-pack" id="alx-pending-send" hidden>Send queued</button>
+        <button type="button" class="alx-btn-pack" id="alx-pending-discard" hidden>Discard</button>
         <button type="button" class="alx-btn-pack" id="alx-pack-btn">Download for offline</button>
       </div>
 
@@ -419,13 +703,19 @@
       </div>
 
       <div class="alx-messages" id="alx-messages" role="log" aria-live="polite" aria-atomic="false">
-        <div class="alx-bubble alx-bubble-assistant" id="alx-welcome" lang="en" dir="ltr"></div>
+        <div class="alx-welcome-wrap" id="alx-welcome-wrap">
+          <div class="alx-bubble alx-bubble-assistant" id="alx-welcome" lang="en" dir="ltr"></div>
+          <div class="alx-suggestions" id="alx-suggestions" aria-label="Suggested prompts"></div>
+        </div>
       </div>
 
       <div class="alx-input-area">
         <form class="alx-input-form" id="alx-form">
-          <label for="alx-input" class="alx-lang-label" id="alx-input-label">Type your question</label>
-          <input type="text" class="alx-input-field" id="alx-input" placeholder="Ask a question about this lesson..." autocomplete="off" required />
+          <div class="alx-composer-wrap">
+            <label for="alx-input" class="alx-lang-label" id="alx-input-label">Type your question</label>
+            <textarea class="alx-input-field" id="alx-input" placeholder="Ask a question about this lesson..." rows="1" required></textarea>
+            <div class="alx-composer-hint" id="alx-composer-hint">Enter to send · Shift+Enter for a new line</div>
+          </div>
           <button type="button" class="alx-btn-voice" id="alx-voice-btn" aria-label="Voice input - Speak your question" aria-pressed="false" title="Voice input">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
@@ -433,8 +723,32 @@
           </button>
           <button type="submit" class="alx-btn-send" id="alx-send-btn" aria-label="Send message">Send</button>
         </form>
+        <div class="alx-rec-bar" id="alx-rec-bar" data-active="false" role="status" aria-live="polite">
+          <span class="alx-rec-dot" id="alx-rec-dot" aria-hidden="true"></span>
+          <span class="alx-rec-timer" id="alx-rec-timer">0:00</span>
+          <div class="alx-rec-meter" id="alx-rec-meter" aria-hidden="true"><span id="alx-rec-level"></span></div>
+          <div class="alx-rec-actions">
+            <button type="button" id="alx-rec-pause" data-i18n="rec_pause">Pause</button>
+            <button type="button" class="alx-rec-stop" id="alx-rec-stop" data-i18n="rec_stop">Stop</button>
+            <button type="button" id="alx-rec-discard" data-i18n="rec_discard">Discard</button>
+          </div>
+        </div>
+        <div class="alx-review-panel" id="alx-review-panel" data-active="false">
+          <label for="alx-review-text" class="alx-lang-label" id="alx-review-label">Edit transcript</label>
+          <textarea id="alx-review-text" rows="3"></textarea>
+          <audio id="alx-review-audio" controls hidden></audio>
+          <div class="alx-review-actions">
+            <button type="button" id="alx-review-replay" data-i18n="rec_replay">Replay</button>
+            <button type="button" id="alx-review-retry" data-i18n="rec_retry">Retry transcription</button>
+            <button type="button" id="alx-review-discard" data-i18n="rec_discard">Discard</button>
+            <button type="button" class="alx-review-send" id="alx-review-send" data-i18n="send">Send</button>
+          </div>
+        </div>
         <div class="alx-voice-note" id="alx-voice-note" hidden></div>
       </div>
+        </div>
+      </div>
+      <button type="button" class="alx-resize-handle" id="alx-resize-handle" aria-label="Resize chat window" title="Drag to resize"></button>
     </div>
   `;
 
@@ -453,7 +767,20 @@
       this.scopeBadge = this.shadowRoot.getElementById('alx-scope-badge');
       this.scope = this.detectScope();
       this.updateScopeBadge();
+      this.ownerId = this._getOrCreateOwnerId();
       this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
+      this.conversationId = null;
+      this._conversations = [];
+      this._sidebarOpen = true;
+      this.sessionLang = null;
+      this.serverStt = false;
+      this._sttProbeDone = false;
+      this.voiceRecorder = null;
+      this._activeUploadSession = null;
+      this._voiceTimings = null;
+      this.isSubmitting = false;
+      this._lastUserMessage = null;
+      this._ttsController = { utterance: null, bubbleId: null, paused: false };
       this.ttsVoices = [];
       this.speechSupported = false;
       this.ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -461,7 +788,21 @@
       this.launcher = this.shadowRoot.getElementById('alx-launcher');
       this.dialog = this.shadowRoot.getElementById('alx-dialog');
       this.closeBtn = this.shadowRoot.getElementById('alx-close-btn');
-      this.clearBtn = this.shadowRoot.getElementById('alx-clear-btn');
+      this.clearBtn = null;
+      this.maximizeBtn = this.shadowRoot.getElementById('alx-maximize-btn');
+      this.resizeHandle = this.shadowRoot.getElementById('alx-resize-handle');
+      this._dialogMaximized = false;
+      this._resizeState = null;
+      this.sidebarBtn = this.shadowRoot.getElementById('alx-sidebar-btn');
+      this.newChatBtn = this.shadowRoot.getElementById('alx-newchat-btn');
+      this.sidebar = this.shadowRoot.getElementById('alx-sidebar');
+      this.sidebarBackdrop = this.shadowRoot.getElementById('alx-sidebar-backdrop');
+      this.sidebarNewBtn = this.shadowRoot.getElementById('alx-sidebar-new');
+      this.searchChats = this.shadowRoot.getElementById('alx-search-chats');
+      this.convList = this.shadowRoot.getElementById('alx-conv-list');
+      this.welcomeWrap = this.shadowRoot.getElementById('alx-welcome-wrap');
+      this.suggestionsEl = this.shadowRoot.getElementById('alx-suggestions');
+      this.composerHint = this.shadowRoot.getElementById('alx-composer-hint');
       this.langSelect = this.shadowRoot.getElementById('alx-lang-select');
       this.simpleModeCheck = this.shadowRoot.getElementById('alx-simple-mode');
       this.escalateBtn = this.shadowRoot.getElementById('alx-escalate-btn');
@@ -469,15 +810,34 @@
       this.input = this.shadowRoot.getElementById('alx-input');
       this.voiceBtn = this.shadowRoot.getElementById('alx-voice-btn');
       this.voiceNote = this.shadowRoot.getElementById('alx-voice-note');
+      this.recBar = this.shadowRoot.getElementById('alx-rec-bar');
+      this.recDot = this.shadowRoot.getElementById('alx-rec-dot');
+      this.recTimer = this.shadowRoot.getElementById('alx-rec-timer');
+      this.recLevel = this.shadowRoot.getElementById('alx-rec-level');
+      this.recPauseBtn = this.shadowRoot.getElementById('alx-rec-pause');
+      this.recStopBtn = this.shadowRoot.getElementById('alx-rec-stop');
+      this.recDiscardBtn = this.shadowRoot.getElementById('alx-rec-discard');
+      this.reviewPanel = this.shadowRoot.getElementById('alx-review-panel');
+      this.reviewText = this.shadowRoot.getElementById('alx-review-text');
+      this.reviewAudio = this.shadowRoot.getElementById('alx-review-audio');
+      this.reviewReplayBtn = this.shadowRoot.getElementById('alx-review-replay');
+      this.reviewRetryBtn = this.shadowRoot.getElementById('alx-review-retry');
+      this.reviewDiscardBtn = this.shadowRoot.getElementById('alx-review-discard');
+      this.reviewSendBtn = this.shadowRoot.getElementById('alx-review-send');
+      this.reviewLabel = this.shadowRoot.getElementById('alx-review-label');
       this.messagesContainer = this.shadowRoot.getElementById('alx-messages');
       this.welcomeBubble = this.shadowRoot.getElementById('alx-welcome');
       this.sendBtn = this.shadowRoot.getElementById('alx-send-btn');
       this.connStatus = this.shadowRoot.getElementById('alx-conn-status');
       this.connLabel = this.shadowRoot.getElementById('alx-conn-label');
+      this.pendingBadge = this.shadowRoot.getElementById('alx-pending-badge');
+      this.pendingSendBtn = this.shadowRoot.getElementById('alx-pending-send');
+      this.pendingDiscardBtn = this.shadowRoot.getElementById('alx-pending-discard');
       this.packBtn = this.shadowRoot.getElementById('alx-pack-btn');
       this.connectionState = 'online';
       this.offlineRuntime = null;
       this._syncPrompted = false;
+      this._reviewObjectUrl = null;
     }
 
     _readSavedLang() {
@@ -494,64 +854,586 @@
       } catch (e) { /* private browsing */ }
     }
 
+    _getOrCreateOwnerId() {
+      const key = 'alx_owner_id';
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          let id = window.localStorage.getItem(key);
+          if (!id) {
+            id = 'device-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            window.localStorage.setItem(key, id);
+          }
+          return id;
+        }
+      } catch (e) { /* private browsing */ }
+      return 'anon-' + Math.random().toString(36).slice(2, 11);
+    }
+
+    _dialogSizeKey() {
+      return 'alx_dialog_size_v1';
+    }
+
+    _restoreDialogSize() {
+      if (!this.dialog) return;
+      try {
+        const raw = window.localStorage.getItem(this._dialogSizeKey());
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (saved && saved.maximized) {
+          this._setMaximized(true, false);
+          return;
+        }
+        if (saved && saved.w && saved.h) {
+          this._applyDialogSize(saved.w, saved.h, false);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _persistDialogSize() {
+      try {
+        if (this._dialogMaximized) {
+          window.localStorage.setItem(this._dialogSizeKey(), JSON.stringify({ maximized: true }));
+          return;
+        }
+        const rect = this.dialog.getBoundingClientRect();
+        window.localStorage.setItem(this._dialogSizeKey(), JSON.stringify({
+          w: Math.round(rect.width),
+          h: Math.round(rect.height),
+          maximized: false,
+        }));
+      } catch (e) { /* ignore */ }
+    }
+
+    _applyDialogSize(width, height, persist) {
+      if (!this.dialog || this._dialogMaximized) return;
+      const maxW = Math.max(300, window.innerWidth - 16);
+      const maxH = Math.max(360, window.innerHeight - 72);
+      const w = Math.min(maxW, Math.max(300, width));
+      const h = Math.min(maxH, Math.max(360, height));
+      this.dialog.style.width = w + 'px';
+      this.dialog.style.height = h + 'px';
+      this.dialog.style.setProperty('--alx-dialog-w', w + 'px');
+      this.dialog.style.setProperty('--alx-dialog-h', h + 'px');
+      if (persist !== false) this._persistDialogSize();
+    }
+
+    _setMaximized(on, persist) {
+      this._dialogMaximized = !!on;
+      if (!this.dialog) return;
+      this.dialog.dataset.maximized = this._dialogMaximized ? 'true' : 'false';
+      if (this.maximizeBtn) {
+        this.maximizeBtn.textContent = this._dialogMaximized ? '❐' : '⛶';
+        this.maximizeBtn.title = this._dialogMaximized ? 'Restore chat size' : 'Expand chat';
+        this.maximizeBtn.setAttribute('aria-label', this.maximizeBtn.title);
+      }
+      if (this.resizeHandle) this.resizeHandle.hidden = this._dialogMaximized || window.innerWidth <= 720;
+      if (persist !== false) this._persistDialogSize();
+    }
+
+    _initResizeControls() {
+      if (this.maximizeBtn) {
+        this.maximizeBtn.addEventListener('click', () => this._setMaximized(!this._dialogMaximized));
+      }
+      if (!this.resizeHandle) return;
+      const onMove = (clientX, clientY) => {
+        if (!this._resizeState) return;
+        // Dialog is anchored bottom-right: dragging the top-left handle outward grows it.
+        const dx = this._resizeState.startX - clientX;
+        const dy = this._resizeState.startY - clientY;
+        this._applyDialogSize(this._resizeState.startW + dx, this._resizeState.startH + dy, false);
+      };
+      const onUp = () => {
+        if (!this._resizeState) return;
+        this._resizeState = null;
+        this._persistDialogSize();
+        window.removeEventListener('pointermove', pointerMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+      };
+      const pointerMove = (e) => onMove(e.clientX, e.clientY);
+      this.resizeHandle.addEventListener('pointerdown', (e) => {
+        if (this._dialogMaximized || window.innerWidth <= 480) return;
+        e.preventDefault();
+        const rect = this.dialog.getBoundingClientRect();
+        this._resizeState = {
+          startX: e.clientX,
+          startY: e.clientY,
+          startW: rect.width,
+          startH: rect.height,
+        };
+        try { this.resizeHandle.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+        window.addEventListener('pointermove', pointerMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+      });
+      window.addEventListener('resize', () => {
+        if (window.innerWidth <= 480) {
+          this._setMaximized(false, false);
+          if (this.dialog) {
+            this.dialog.style.width = '';
+            this.dialog.style.height = '';
+          }
+          return;
+        }
+        if (!this._dialogMaximized && this.dialog) {
+          const rect = this.dialog.getBoundingClientRect();
+          this._applyDialogSize(rect.width, rect.height, false);
+        }
+        if (this.resizeHandle) this.resizeHandle.hidden = this._dialogMaximized || window.innerWidth <= 720;
+      });
+    }
+
+    _ownerHeaders(extra) {
+      const headers = Object.assign({ 'X-Owner-Id': this.ownerId }, extra || {});
+      return headers;
+    }
+
     _storageKey() {
       return 'alx_chat_history_' + (this.scope || 'default');
     }
 
     _loadStoredHistory() {
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          const raw = window.localStorage.getItem(this._storageKey());
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) return parsed;
-          }
-        }
-      } catch (e) {}
+      // Refresh always starts a new empty session; history lives in sidebar / server / IndexedDB.
       return [];
     }
 
     _saveStoredHistory() {
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem(this._storageKey(), JSON.stringify((this.chatHistory || []).slice(-20)));
-        }
-      } catch (e) {}
+      // Intentionally no localStorage restore-on-refresh for the active thread.
     }
 
     clearChatHistory() {
-      this.chatHistory = [];
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.removeItem(this._storageKey());
-        }
-      } catch (e) {}
-      this.messagesContainer.innerHTML = '';
-      if (this.welcomeBubble) {
-        this.welcomeBubble.textContent = this.t('welcome');
-        this.messagesContainer.appendChild(this.welcomeBubble);
-      }
+      this.startNewConversation({ focus: true });
     }
 
     _restoreStoredHistoryUI() {
-      if (!Array.isArray(this.chatHistory) || this.chatHistory.length === 0) return;
-      for (const turn of this.chatHistory) {
-        if (turn.role === 'user') {
-          this.appendMessage(turn.content, 'user', turn.lang || this.uiLangCode());
-        } else if (turn.role === 'assistant') {
-          this.appendMessage(turn.content, 'assistant', turn.lang || this.uiLangCode(), turn.citations || []);
+      // no-op: refresh = empty welcome
+    }
+
+    _escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    _renderMarkdown(text) {
+      let src = this._escapeHtml(text);
+      const blocks = [];
+      src = src.replace(/```([\s\S]*?)```/g, (_, code) => {
+        const i = blocks.length;
+        blocks.push('<pre><code>' + code.trim() + '</code></pre>');
+        return '\u0000MD' + i + '\u0000';
+      });
+      src = src.replace(/`([^`]+)`/g, '<code>$1</code>');
+      src = src.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      src = src.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      const lines = src.split('\n');
+      let html = '';
+      let inUl = false;
+      let inOl = false;
+      const closeLists = () => {
+        if (inUl) { html += '</ul>'; inUl = false; }
+        if (inOl) { html += '</ol>'; inOl = false; }
+      };
+      for (const line of lines) {
+        if (line.indexOf('\u0000MD') === 0) {
+          closeLists();
+          const m = line.match(/\u0000MD(\d+)\u0000/);
+          if (m) html += blocks[Number(m[1])] || '';
+          continue;
         }
+        if (/^[-*]\s+/.test(line)) {
+          if (!inUl) { closeLists(); html += '<ul>'; inUl = true; }
+          html += '<li>' + line.replace(/^[-*]\s+/, '') + '</li>';
+          continue;
+        }
+        if (/^\d+\.\s+/.test(line)) {
+          if (!inOl) { closeLists(); html += '<ol>'; inOl = true; }
+          html += '<li>' + line.replace(/^\d+\.\s+/, '') + '</li>';
+          continue;
+        }
+        closeLists();
+        if (!line.trim()) continue;
+        html += '<p>' + line + '</p>';
+      }
+      closeLists();
+      return html || '<p></p>';
+    }
+
+    _renderWelcome() {
+      this.messagesContainer.innerHTML = '';
+      if (!this.welcomeWrap) {
+        this.welcomeWrap = document.createElement('div');
+        this.welcomeWrap.className = 'alx-welcome-wrap';
+        this.welcomeWrap.id = 'alx-welcome-wrap';
+      }
+      if (!this.welcomeBubble) {
+        this.welcomeBubble = document.createElement('div');
+        this.welcomeBubble.className = 'alx-bubble alx-bubble-assistant';
+        this.welcomeBubble.id = 'alx-welcome';
+      }
+      if (!this.suggestionsEl) {
+        this.suggestionsEl = document.createElement('div');
+        this.suggestionsEl.className = 'alx-suggestions';
+        this.suggestionsEl.id = 'alx-suggestions';
+      }
+      this.welcomeBubble.textContent = this.t('welcome');
+      this.suggestionsEl.innerHTML = '';
+      const title = document.createElement('div');
+      title.style.cssText = 'width:100%;font-size:12px;font-weight:700;color:var(--alx-text-muted)';
+      title.textContent = this.t('suggestions_title');
+      this.suggestionsEl.appendChild(title);
+      ['suggest_1', 'suggest_2', 'suggest_3', 'suggest_4'].forEach((key) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'alx-suggestion';
+        btn.textContent = this.t(key);
+        btn.addEventListener('click', () => {
+          this.input.value = this.t(key);
+          this.handleSubmit({ preventDefault() {} });
+        });
+        this.suggestionsEl.appendChild(btn);
+      });
+      this.welcomeWrap.innerHTML = '';
+      this.welcomeWrap.appendChild(this.welcomeBubble);
+      this.welcomeWrap.appendChild(this.suggestionsEl);
+      this.messagesContainer.appendChild(this.welcomeWrap);
+    }
+
+    async startNewConversation(opts) {
+      const options = opts || {};
+      this.chatHistory = [];
+      this.sessionId = 'anon-' + Math.random().toString(36).substring(2, 9);
+      this.conversationId = null;
+      this._lastUserMessage = null;
+      this._renderWelcome();
+      if (navigator.onLine) {
+        try {
+          const res = await fetch(this.apiUrl + '/conversations', {
+            method: 'POST',
+            headers: this._ownerHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+              course_id: this.scope || 'course:va-1',
+              language: this.languageForApi(),
+              title: 'New chat',
+            }),
+          });
+          if (res.ok) {
+            const conv = await res.json();
+            this.conversationId = conv.id;
+            if (this.offlineRuntime && this.offlineRuntime.upsertConversation) {
+              await this.offlineRuntime.upsertConversation(Object.assign({}, conv, { owner_id: this.ownerId }));
+            }
+          }
+        } catch (e) { /* offline create below */ }
+      }
+      if (!this.conversationId && this.offlineRuntime && this.offlineRuntime.upsertConversation) {
+        const local = await this.offlineRuntime.upsertConversation({
+          owner_id: this.ownerId,
+          course_id: this.scope || 'course:va-1',
+          language: this.languageForApi(),
+          title: 'New chat',
+        });
+        this.conversationId = local.id;
+      }
+      await this.refreshConversationList();
+      if (options.focus && this.input) this.input.focus();
+    }
+
+    async refreshConversationList(q) {
+      if (!this.convList) return;
+      let conversations = [];
+      let groups = null;
+      const query = (q != null ? q : (this.searchChats && this.searchChats.value) || '').trim();
+      if (navigator.onLine) {
+        try {
+          const url = this.apiUrl + '/conversations' + (query ? ('?q=' + encodeURIComponent(query)) : '');
+          const res = await fetch(url, { headers: this._ownerHeaders() });
+          if (res.ok) {
+            const data = await res.json();
+            conversations = data.conversations || [];
+            groups = data.groups || null;
+          }
+        } catch (e) { /* fall through */ }
+      }
+      if (!conversations.length && this.offlineRuntime && this.offlineRuntime.listLocalConversations) {
+        conversations = await this.offlineRuntime.listLocalConversations(this.ownerId, query);
+      }
+      this._conversations = conversations;
+      this.convList.innerHTML = '';
+      const order = [
+        ['today', this.t('today')],
+        ['yesterday', this.t('yesterday')],
+        ['previous_7_days', this.t('previous_7_days')],
+        ['older', this.t('older')],
+      ];
+      const renderItem = (conv) => {
+        const row = document.createElement('div');
+        row.className = 'alx-conv-item' + (conv.id === this.conversationId ? ' active' : '');
+        row.setAttribute('role', 'listitem');
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'alx-conv-open';
+        openBtn.textContent = conv.title || this.t('new_chat');
+        openBtn.title = conv.title || this.t('new_chat');
+        openBtn.addEventListener('click', () => this.openConversation(conv.id));
+        const actions = document.createElement('div');
+        actions.className = 'alx-conv-actions';
+        const renameBtn = document.createElement('button');
+        renameBtn.type = 'button';
+        renameBtn.textContent = '✎';
+        renameBtn.title = this.t('rename_chat');
+        renameBtn.setAttribute('aria-label', this.t('rename_chat'));
+        renameBtn.addEventListener('click', () => this.renameConversation(conv.id, conv.title));
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.textContent = '✕';
+        delBtn.title = this.t('delete_chat');
+        delBtn.setAttribute('aria-label', this.t('delete_chat'));
+        delBtn.addEventListener('click', () => this.deleteConversation(conv.id));
+        actions.appendChild(renameBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(openBtn);
+        row.appendChild(actions);
+        this.convList.appendChild(row);
+      };
+      if (groups) {
+        let any = false;
+        order.forEach(([key, label]) => {
+          const items = groups[key] || [];
+          if (!items.length) return;
+          any = true;
+          const lab = document.createElement('div');
+          lab.className = 'alx-conv-group-label';
+          lab.textContent = label;
+          this.convList.appendChild(lab);
+          items.forEach(renderItem);
+        });
+        if (!any) {
+          const empty = document.createElement('div');
+          empty.className = 'alx-conv-group-label';
+          empty.textContent = this.t('empty_history');
+          this.convList.appendChild(empty);
+        }
+      } else if (conversations.length) {
+        conversations.forEach(renderItem);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'alx-conv-group-label';
+        empty.textContent = this.t('empty_history');
+        this.convList.appendChild(empty);
       }
     }
 
+    async openConversation(conversationId) {
+      let detail = null;
+      if (navigator.onLine) {
+        try {
+          const res = await fetch(this.apiUrl + '/conversations/' + encodeURIComponent(conversationId), {
+            headers: this._ownerHeaders(),
+          });
+          if (res.ok) detail = await res.json();
+        } catch (e) { /* offline */ }
+      }
+      if (!detail && this.offlineRuntime) {
+        const conv = await this.offlineRuntime.getLocalConversation(conversationId);
+        const messages = await this.offlineRuntime.listLocalMessages(conversationId);
+        if (conv) detail = Object.assign({}, conv, { messages: messages || [] });
+      }
+      if (!detail) return;
+      this.conversationId = detail.id;
+      this.chatHistory = [];
+      this.messagesContainer.innerHTML = '';
+      const msgs = detail.messages || [];
+      if (!msgs.length) {
+        this._renderWelcome();
+      } else {
+        for (const m of msgs) {
+          if (m.role === 'user') {
+            this.appendMessage(m.content, 'user', m.language || this.uiLangCode());
+            this.chatHistory.push({ role: 'user', content: m.content, lang: m.language });
+          } else if (m.role === 'assistant') {
+            const bubble = this.appendMessage(m.content, 'assistant', m.language || this.uiLangCode(), m.citations || []);
+            if (bubble && (m.source_type || m.answer_source)) {
+              this.appendAnswerBadge(bubble, m.source_type || this.mapAnswerSource(m));
+            }
+            this.chatHistory.push({
+              role: 'assistant', content: m.content, lang: m.language, citations: m.citations || [],
+            });
+          }
+        }
+      }
+      this.setSidebarOpen(window.matchMedia('(max-width: 720px)').matches ? false : this._sidebarOpen);
+      await this.refreshConversationList();
+    }
+
+    async renameConversation(conversationId, currentTitle) {
+      const next = window.prompt(this.t('rename_chat'), currentTitle || '');
+      if (next == null) return;
+      const title = String(next).trim();
+      if (!title) return;
+      if (navigator.onLine) {
+        try {
+          await fetch(this.apiUrl + '/conversations/' + encodeURIComponent(conversationId), {
+            method: 'PATCH',
+            headers: this._ownerHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ title }),
+          });
+        } catch (e) { /* ignore */ }
+      }
+      if (this.offlineRuntime && this.offlineRuntime.getLocalConversation) {
+        const local = await this.offlineRuntime.getLocalConversation(conversationId);
+        if (local) {
+          local.title = title;
+          local.updated_at = new Date().toISOString();
+          await this.offlineRuntime.upsertConversation(local);
+        }
+      }
+      await this.refreshConversationList();
+    }
+
+    async deleteConversation(conversationId) {
+      if (!window.confirm(this.t('delete_chat') + '?')) return;
+      if (navigator.onLine) {
+        try {
+          await fetch(this.apiUrl + '/conversations/' + encodeURIComponent(conversationId), {
+            method: 'DELETE',
+            headers: this._ownerHeaders(),
+          });
+        } catch (e) { /* ignore */ }
+      }
+      if (this.offlineRuntime && this.offlineRuntime.deleteLocalConversation) {
+        await this.offlineRuntime.deleteLocalConversation(conversationId);
+      }
+      if (this.conversationId === conversationId) {
+        await this.startNewConversation({ focus: false });
+      } else {
+        await this.refreshConversationList();
+      }
+    }
+
+    async persistTurn(userMessage, data) {
+      if (!this.conversationId) {
+        await this.startNewConversation({ focus: false });
+      }
+      if (!this.conversationId) return;
+      const payload = {
+        user_message: userMessage,
+        assistant_message: (data && data.answer) || '',
+        language: (data && data.language) || this.uiLangCode(),
+        provider: (data && data.provider) || '',
+        answer_source: (data && data.answer_source) || '',
+        source_type: (data && data.source_type) || '',
+        cache_hit: !!(data && data.cache_hit),
+        citations: (data && data.citations) || [],
+        metadata: {
+          connectivity: (data && data.connectivity) || (navigator.onLine ? 'online' : 'offline'),
+          fallback_reason: (data && data.fallback_reason) || null,
+        },
+      };
+      if (navigator.onLine) {
+        try {
+          const res = await fetch(
+            this.apiUrl + '/conversations/' + encodeURIComponent(this.conversationId) + '/messages',
+            {
+              method: 'POST',
+              headers: this._ownerHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify(payload),
+            },
+          );
+          if (res.ok) {
+            const body = await res.json();
+            if (body.conversation) this.conversationId = body.conversation.id;
+            if (this.offlineRuntime) {
+              if (body.conversation) await this.offlineRuntime.upsertConversation(body.conversation);
+              if (body.user) await this.offlineRuntime.saveLocalMessage(body.user);
+              if (body.assistant) await this.offlineRuntime.saveLocalMessage(body.assistant);
+            }
+            await this.refreshConversationList();
+            return;
+          }
+        } catch (e) { /* fall through to local */ }
+      }
+      if (this.offlineRuntime && this.offlineRuntime.saveLocalMessage) {
+        await this.offlineRuntime.saveLocalMessage({
+          conversation_id: this.conversationId,
+          role: 'user',
+          content: userMessage,
+          language: payload.language,
+        });
+        if (payload.assistant_message) {
+          await this.offlineRuntime.saveLocalMessage({
+            conversation_id: this.conversationId,
+            role: 'assistant',
+            content: payload.assistant_message,
+            language: payload.language,
+            provider: payload.provider,
+            answer_source: payload.answer_source,
+            source_type: payload.source_type,
+            cache_hit: payload.cache_hit,
+            citations: payload.citations,
+            metadata: payload.metadata,
+          });
+        }
+        await this.refreshConversationList();
+      }
+    }
+
+    setSidebarOpen(open) {
+      this._sidebarOpen = !!open;
+      if (!this.sidebar) return;
+      const mobile = window.matchMedia('(max-width: 720px)').matches;
+      if (mobile) {
+        this.sidebar.hidden = !this._sidebarOpen;
+        if (this.sidebarBackdrop) {
+          this.sidebarBackdrop.hidden = !this._sidebarOpen;
+          this.sidebarBackdrop.dataset.open = this._sidebarOpen ? 'true' : 'false';
+        }
+      } else {
+        this.sidebar.hidden = !this._sidebarOpen;
+        if (this.sidebarBackdrop) {
+          this.sidebarBackdrop.hidden = true;
+          this.sidebarBackdrop.dataset.open = 'false';
+        }
+      }
+      if (this.sidebarBtn) {
+        this.sidebarBtn.setAttribute('aria-expanded', this._sidebarOpen ? 'true' : 'false');
+        this.sidebarBtn.setAttribute('aria-label', this._sidebarOpen ? this.t('close_sidebar') : this.t('open_sidebar'));
+        this.sidebarBtn.title = this._sidebarOpen ? this.t('close_sidebar') : this.t('open_sidebar');
+      }
+    }
+
+    toggleSidebar() {
+      this.setSidebarOpen(!this._sidebarOpen);
+    }
+
+    effectiveLang() {
+      if (this.currentLang && this.currentLang !== 'auto') return this.currentLang;
+      if (this.sessionLang) return this.sessionLang;
+      return 'am';
+    }
+
+    languageForApi() {
+      if (this.currentLang && this.currentLang !== 'auto') return this.currentLang;
+      if (this.sessionLang) return this.sessionLang;
+      return 'auto';
+    }
+
     t(key) {
-      const uiLang = this.currentLang === 'auto' ? 'en' : this.currentLang;
+      const uiLang = this.effectiveLang();
       const pack = this.uiPack[uiLang] || this.uiPack.en;
       return pack[key] || this.uiPack.en[key] || key;
     }
 
     uiLangCode() {
-      return this.currentLang === 'auto' ? 'en' : this.currentLang;
+      return this.effectiveLang();
+    }
+
+    rememberLanguage(code) {
+      if (code && code !== 'auto' && this.langMeta[code]) {
+        this.sessionLang = code;
+      }
     }
 
     detectScope() {
@@ -587,9 +1469,23 @@
       this.applyLanguage();
       this.launcher.addEventListener('click', () => this.toggle());
       this.closeBtn.addEventListener('click', () => this.close());
-      if (this.clearBtn) this.clearBtn.addEventListener('click', () => this.clearChatHistory());
-      this.chatHistory = this._loadStoredHistory();
-      this._restoreStoredHistoryUI();
+      this._restoreDialogSize();
+      this._initResizeControls();
+      if (this.sidebarBtn) this.sidebarBtn.addEventListener('click', () => this.toggleSidebar());
+      if (this.newChatBtn) this.newChatBtn.addEventListener('click', () => this.startNewConversation({ focus: true }));
+      if (this.sidebarNewBtn) this.sidebarNewBtn.addEventListener('click', () => this.startNewConversation({ focus: true }));
+      if (this.sidebarBackdrop) this.sidebarBackdrop.addEventListener('click', () => this.setSidebarOpen(false));
+      if (this.searchChats) {
+        let timer = null;
+        this.searchChats.addEventListener('input', () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => this.refreshConversationList(this.searchChats.value), 200);
+        });
+      }
+      // Refresh = new empty chat (do not restore prior thread into the main pane).
+      this.chatHistory = [];
+      this._renderWelcome();
+      this.setSidebarOpen(!window.matchMedia('(max-width: 720px)').matches);
       this.langSelect.addEventListener('change', () => {
         this.currentLang = this.langSelect.value;
         this._saveLang(this.currentLang);
@@ -597,13 +1493,31 @@
       });
       this.escalateBtn.addEventListener('click', () => this.requestHumanHelp());
       this.form.addEventListener('submit', (e) => this.handleSubmit(e));
-      this.initVoiceInput();
+      if (this.input) {
+        this.input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.handleSubmit(e);
+          }
+        });
+        this.input.addEventListener('input', () => {
+          this.input.style.height = 'auto';
+          this.input.style.height = Math.min(140, this.input.scrollHeight) + 'px';
+        });
+      }
       this.initSpeechSynthesis();
       this.loadRemoteLanguagePack();
-      this.bootOffline();
+      // Wire mic immediately; probe STT in the background (do not block first click).
+      this.initVoiceInput();
+      this.probeServerStt();
+      this.bootOffline().then(() => {
+        this.startNewConversation({ focus: false });
+        this.refreshConversationList();
+      });
       this.dialog.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') this.close();
       });
+      window.addEventListener('resize', () => this.setSidebarOpen(this._sidebarOpen));
     }
 
     async bootOffline() {
@@ -613,10 +1527,14 @@
       window.addEventListener('online', () => this.onConnectivityChange(true));
       window.addEventListener('offline', () => this.onConnectivityChange(false));
       if (this.packBtn) this.packBtn.addEventListener('click', () => this.downloadCoursePack());
+      if (this.pendingSendBtn) this.pendingSendBtn.addEventListener('click', () => this.syncQueuedPending());
+      if (this.pendingDiscardBtn) this.pendingDiscardBtn.addEventListener('click', () => this.discardQueuedPending());
       await this.refreshPackButton();
+      await this.refreshPendingBadge();
       if (navigator.onLine) {
         this.maybeAutoDownloadPack();
         this.promptSyncIfNeeded();
+        this.promptPackRefreshIfNeeded();
       }
     }
 
@@ -635,16 +1553,83 @@
       this.connStatus.classList.add(this.connectionState === 'syncing' ? 'syncing' : (online ? 'online' : 'offline'));
       if (this.connLabel) {
         this.connLabel.textContent = this.connectionState === 'syncing' ? this.t('status_syncing')
-          : (online ? this.t('status_online') : this.t('status_offline'));
+          : (online ? this.t('connectivity_ai_online') : this.t('connectivity_ai_offline'));
+      }
+      // Cloud voice / regenerate require network — never pretend they work offline.
+      if (this.voiceBtn) {
+        this.voiceBtn.disabled = !online;
+        this.voiceBtn.title = online ? this.t('voice_aria') : this.t('voice_needs_network');
       }
     }
 
     async onConnectivityChange(isOnline) {
       this.updateConnectionStatus(isOnline);
+      await this.refreshPendingBadge();
       if (isOnline) {
         await this.refreshPackButton();
         this.promptSyncIfNeeded();
+        this.promptPackRefreshIfNeeded();
       }
+    }
+
+    async refreshPendingBadge() {
+      if (!this.offlineRuntime || !this.pendingBadge) return;
+      const queued = await this.offlineRuntime.listPending('queued');
+      const n = queued.length;
+      if (!n) {
+        this.pendingBadge.hidden = true;
+        if (this.pendingSendBtn) this.pendingSendBtn.hidden = true;
+        if (this.pendingDiscardBtn) this.pendingDiscardBtn.hidden = true;
+        return;
+      }
+      this.pendingBadge.hidden = false;
+      this.pendingBadge.textContent = this.t('pending_badge').replace('{n}', String(n));
+      const showActions = !!navigator.onLine;
+      if (this.pendingSendBtn) {
+        this.pendingSendBtn.hidden = !showActions;
+        this.pendingSendBtn.textContent = this.t('pending_send');
+      }
+      if (this.pendingDiscardBtn) {
+        this.pendingDiscardBtn.hidden = !showActions;
+        this.pendingDiscardBtn.textContent = this.t('pending_discard');
+      }
+    }
+
+    async syncQueuedPending({ skipConfirm } = {}) {
+      if (!this.offlineRuntime || !navigator.onLine) return;
+      const queued = await this.offlineRuntime.listPending('queued');
+      if (!queued.length) return;
+      if (!skipConfirm) {
+        const ok = window.confirm(this.t('sync_prompt').replace('{n}', String(queued.length)));
+        if (!ok) {
+          this.appendMessage(this.t('sync_skip'), 'assistant', this.uiLangCode());
+          return;
+        }
+      }
+      this.connectionState = 'syncing';
+      this.updateConnectionStatus(true);
+      const result = await this.offlineRuntime.syncPending(this.apiUrl, { consent: true });
+      this.connectionState = 'online';
+      this.updateConnectionStatus(true);
+      this.appendMessage(this.t('sync_done').replace('{n}', String(result.synced || 0)), 'assistant', this.uiLangCode());
+      await this.refreshPendingBadge();
+    }
+
+    async discardQueuedPending() {
+      if (!this.offlineRuntime) return;
+      const result = await this.offlineRuntime.discardPending('queued');
+      this.appendMessage(this.t('sync_skip') + ` (${result.discarded || 0})`, 'assistant', this.uiLangCode());
+      await this.refreshPendingBadge();
+    }
+
+    async promptPackRefreshIfNeeded() {
+      if (!this.offlineRuntime || !navigator.onLine || this._packPrompted) return;
+      const stale = await this.offlineRuntime.isPackStale(this.apiUrl, this.scope);
+      if (!stale.stale || stale.reason === 'missing') return;
+      this._packPrompted = true;
+      const remote = (stale.remote && stale.remote.kb_version) || 'newer';
+      const ok = window.confirm(this.t('pack_refresh_prompt').replace('{remote}', remote));
+      if (ok) await this.downloadCoursePack();
     }
 
     async refreshPackButton() {
@@ -706,26 +1691,61 @@
     async promptSyncIfNeeded() {
       if (!this.offlineRuntime || this._syncPrompted || !navigator.onLine) return;
       const queued = await this.offlineRuntime.listPending('queued');
+      await this.refreshPendingBadge();
       if (!queued.length) return;
       this._syncPrompted = true;
+      // Visible badge + buttons; confirm remains for consent before personal data leaves the device.
       const ok = window.confirm(this.t('sync_prompt').replace('{n}', String(queued.length)));
       if (!ok) {
         this.appendMessage(this.t('sync_skip'), 'assistant', this.uiLangCode());
         return;
       }
-      this.connectionState = 'syncing';
-      this.updateConnectionStatus(true);
-      const result = await this.offlineRuntime.syncPending(this.apiUrl, { consent: true });
-      this.connectionState = 'online';
-      this.updateConnectionStatus(true);
-      this.appendMessage(this.t('sync_done').replace('{n}', String(result.synced || 0)), 'assistant', this.uiLangCode());
+      await this.syncQueuedPending({ skipConfirm: true });
     }
 
     appendAnswerBadge(bubble, source) {
+      if (!source || source === 'none') return;
       const badge = document.createElement('span');
-      badge.className = 'alx-answer-badge ' + (source === 'local' ? 'local' : 'cloud');
-      badge.textContent = source === 'local' ? this.t('badge_local') : this.t('badge_cloud');
+      const kind = this._badgeKind(source);
+      badge.className = 'alx-answer-badge ' + kind;
+      badge.textContent = this._badgeLabel(source);
       bubble.appendChild(badge);
+    }
+
+    _badgeKind(source) {
+      const map = {
+        fallback: 'fallback',
+        cache: 'cache',
+        course_grounded: 'cloud',
+        general_knowledge: 'general',
+        mixed: 'mixed',
+        local_course: 'local',
+        faq: 'faq',
+        local: 'local',
+        cloud: 'cloud',
+        social: 'social',
+        careers: 'careers',
+        none: 'social',
+      };
+      return map[source] || 'faq';
+    }
+
+    _badgeLabel(source) {
+      const keys = {
+        fallback: 'badge_fallback',
+        cache: 'badge_cache',
+        course_grounded: 'badge_course',
+        general_knowledge: 'badge_general',
+        mixed: 'badge_mixed',
+        local_course: 'badge_local_course',
+        faq: 'badge_faq',
+        local: 'badge_local',
+        cloud: 'badge_cloud',
+        social: 'badge_social',
+        careers: 'badge_careers',
+      };
+      const key = keys[source];
+      return key ? (this.t(key) || source) : '';
     }
 
 
@@ -796,9 +1816,21 @@
       this.welcomeBubble.textContent = this.t('welcome');
       this.welcomeBubble.setAttribute('lang', code);
       this.welcomeBubble.setAttribute('dir', meta.dir);
+      if (this.suggestionsEl && this.messagesContainer.contains(this.welcomeWrap)) {
+        this._renderWelcome();
+      }
+      if (this.sidebarNewBtn) this.sidebarNewBtn.textContent = this.t('new_chat');
+      if (this.searchChats) this.searchChats.placeholder = this.t('search_chats');
+      if (this.composerHint) this.composerHint.textContent = this.t('composer_hint');
+      if (this.newChatBtn) {
+        this.newChatBtn.title = this.t('new_chat');
+        this.newChatBtn.setAttribute('aria-label', this.t('new_chat'));
+      }
+      this.setSidebarOpen(this._sidebarOpen);
       if (this.packBtn) this.refreshPackButton();
       this.updateConnectionStatus();
       this.refreshVoiceCapabilityHints();
+      this._localizeRecControls();
     }
 
     toggle() {
@@ -820,11 +1852,32 @@
       this.dialog.setAttribute('hidden', '');
       this.launcher.setAttribute('aria-expanded', 'false');
       this.launcher.focus();
+      if (this.voiceRecorder
+          && (this.voiceRecorder.state === 'recording' || this.voiceRecorder.state === 'paused')) {
+        this.discardRecording();
+      }
+      this._stopTts();
     }
 
     speechTag() {
-      const code = this.uiLangCode();
-      return (this.langMeta[code] || this.langMeta.en).speech;
+      const code = this.effectiveLang();
+      return (this.langMeta[code] || this.langMeta.am || this.langMeta.en).speech;
+    }
+
+    async probeServerStt() {
+      try {
+        const res = await fetch(`${this.apiUrl}/health`);
+        if (!res.ok) {
+          this._sttProbeDone = true;
+          return;
+        }
+        const data = await res.json();
+        this.serverStt = !!(data.speech && data.speech.server_stt);
+        this.speechSupported = this.serverStt || this.browserSttSupported;
+        if (this.voiceBtn && this.speechSupported) this.voiceBtn.hidden = false;
+        this.refreshVoiceCapabilityHints();
+      } catch (e) { /* offline — keep optimistic serverStt assumption until proven otherwise */ }
+      this._sttProbeDone = true;
     }
 
     ttsTag() {
@@ -846,7 +1899,7 @@
 
     hasTtsVoice(bcp47) {
       if (!this.ttsSupported) return false;
-      if (!this.ttsVoices.length) return true; // unknown yet — allow attempt; error handler falls back
+      if (!this.ttsVoices.length) return true;
       const prefix = (bcp47 || 'en').split('-')[0].toLowerCase();
       return this.ttsVoices.some((v) => (v.lang || '').toLowerCase().startsWith(prefix));
     }
@@ -858,69 +1911,439 @@
       if (notes.length) {
         this.voiceNote.hidden = false;
         this.voiceNote.textContent = notes.join(' · ');
-      } else {
+      } else if (this.voiceNote && !this.voiceNote.dataset.sticky) {
         this.voiceNote.hidden = true;
         this.voiceNote.textContent = '';
       }
     }
 
+    _showVoiceError(message) {
+      if (!this.voiceNote) return;
+      this.voiceNote.hidden = false;
+      this.voiceNote.dataset.sticky = '1';
+      this.voiceNote.textContent = message;
+    }
+
+    _clearStickyVoiceNote() {
+      if (!this.voiceNote) return;
+      delete this.voiceNote.dataset.sticky;
+      this.voiceNote.hidden = true;
+      this.voiceNote.textContent = '';
+    }
+
     initVoiceInput() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        this.speechSupported = false;
-        if (this.voiceBtn) this.voiceBtn.hidden = true;
-        this.refreshVoiceCapabilityHints();
+      this.browserSttSupported = !!SpeechRecognition;
+      // Optimistic: assume server STT until probe finishes so the mic is usable immediately.
+      if (!this._sttProbeDone) this.serverStt = true;
+      this.speechSupported = this.serverStt || this.browserSttSupported
+        || !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+      if (this.browserSttSupported) {
+        try {
+          this.recognition = new SpeechRecognition();
+          this.recognition.continuous = false;
+          this.recognition.interimResults = true;
+          this.recognition.onresult = (event) => {
+            let finalText = '';
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {
+              const piece = event.results[i][0].transcript;
+              if (event.results[i].isFinal) finalText += piece;
+              else interim += piece;
+            }
+            this.input.value = (finalText || interim).trim();
+          };
+          this.recognition.onerror = () => this.stopBrowserListening();
+          this.recognition.onend = () => this.stopBrowserListening();
+        } catch (err) {
+          this.browserSttSupported = false;
+        }
+      }
+
+      ensureVoiceRecorder().then((VoiceRecorder) => {
+        if (!VoiceRecorder) return;
+        this.voiceRecorder = new VoiceRecorder({
+          maxActiveMs: 60000,
+          keepStream: true,
+          onStateChange: (evt) => this._onRecorderState(evt),
+          onLevel: (level) => {
+            if (this.recLevel) this.recLevel.style.width = `${Math.round(level * 100)}%`;
+          },
+          onTick: ({ activeMs }) => {
+            if (this.recTimer) this.recTimer.textContent = formatMmSs(activeMs);
+          },
+          onError: (err) => this._onRecorderError(err),
+        });
+      });
+
+      if (this.voiceBtn) {
+        this.voiceBtn.addEventListener('click', () => this.handleVoiceButton());
+      }
+      if (this.recPauseBtn) {
+        this.recPauseBtn.addEventListener('click', () => this.togglePauseRecording());
+      }
+      if (this.recStopBtn) {
+        this.recStopBtn.addEventListener('click', () => this.stopAndTranscribe());
+      }
+      if (this.recDiscardBtn) {
+        this.recDiscardBtn.addEventListener('click', () => this.discardRecording());
+      }
+      if (this.reviewReplayBtn) {
+        this.reviewReplayBtn.addEventListener('click', () => this.replayRecording());
+      }
+      if (this.reviewRetryBtn) {
+        this.reviewRetryBtn.addEventListener('click', () => this.retryTranscription());
+      }
+      if (this.reviewDiscardBtn) {
+        this.reviewDiscardBtn.addEventListener('click', () => this.discardRecording());
+      }
+      if (this.reviewSendBtn) {
+        this.reviewSendBtn.addEventListener('click', () => this.sendReviewedTranscript());
+      }
+      this.refreshVoiceCapabilityHints();
+      this._localizeRecControls();
+    }
+
+    _localizeRecControls() {
+      if (this.recPauseBtn) {
+        const paused = this.voiceRecorder && this.voiceRecorder.state === 'paused';
+        this.recPauseBtn.textContent = this.t(paused ? 'rec_resume' : 'rec_pause');
+      }
+      if (this.recStopBtn) this.recStopBtn.textContent = this.t('rec_stop');
+      if (this.recDiscardBtn) this.recDiscardBtn.textContent = this.t('rec_discard');
+      if (this.reviewReplayBtn) this.reviewReplayBtn.textContent = this.t('rec_replay');
+      if (this.reviewRetryBtn) this.reviewRetryBtn.textContent = this.t('rec_retry');
+      if (this.reviewDiscardBtn) this.reviewDiscardBtn.textContent = this.t('rec_discard');
+      if (this.reviewSendBtn) this.reviewSendBtn.textContent = this.t('send');
+      if (this.reviewLabel) this.reviewLabel.textContent = this.t('rec_edit');
+    }
+
+    handleVoiceButton() {
+      if (!navigator.onLine) {
+        this._showVoiceError(this.t('voice_needs_network'));
         return;
       }
-      this.speechSupported = true;
-      try {
-        this.recognition = new SpeechRecognition();
-        this.recognition.continuous = false;
-        this.recognition.interimResults = true;
-        this.isListening = false;
-
-        this.recognition.onstart = () => {
-          this.isListening = true;
-          this.voiceBtn.classList.add('listening');
-          this.voiceBtn.setAttribute('aria-pressed', 'true');
-          this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
-          this.input.placeholder = this.t('listening');
-        };
-        this.recognition.onresult = (event) => {
-          this.input.value = Array.from(event.results).map((res) => res[0].transcript).join('');
-        };
-        this.recognition.onerror = () => this.stopListening();
-        this.recognition.onend = () => this.stopListening();
-
-        this.voiceBtn.addEventListener('click', () => {
-          if (this.isListening) {
-            this.recognition.stop();
-            return;
-          }
-          this.recognition.lang = this.speechTag();
-          try {
-            this.recognition.start();
-          } catch (err) {
-            console.warn('Could not start recognition:', err);
-            this.refreshVoiceCapabilityHints();
-          }
-        });
-      } catch (err) {
-        this.speechSupported = false;
-        if (this.voiceBtn) this.voiceBtn.hidden = true;
-        this.refreshVoiceCapabilityHints();
+      const rec = this.voiceRecorder;
+      if (rec && (rec.state === 'recording' || rec.state === 'paused'
+          || rec.state === 'requesting_permission')) {
+        this.stopAndTranscribe();
+        return;
+      }
+      if (this._browserListening) {
+        this.stopBrowserListening();
+        return;
+      }
+      // Prefer server STT (optimistic until probe says otherwise).
+      if (this.serverStt || !this._sttProbeDone) {
+        this.startServerRecording();
+      } else if (this.browserSttSupported) {
+        this.startBrowserRecognition();
+      } else {
+        this._showVoiceError(this.t('voice_unsupported'));
       }
     }
 
-    stopListening() {
-      this.isListening = false;
+    startBrowserRecognition() {
+      if (!this.recognition) return;
+      this.recognition.lang = this.speechTag();
+      this._browserListening = true;
+      if (this.voiceBtn) {
+        this.voiceBtn.classList.add('listening');
+        this.voiceBtn.setAttribute('aria-pressed', 'true');
+        this.voiceBtn.setAttribute('aria-label', this.t('voice_stop_aria'));
+      }
+      this.input.placeholder = this.t('listening');
+      try {
+        this.recognition.start();
+      } catch (err) {
+        console.warn('Could not start recognition:', err);
+        this.stopBrowserListening();
+      }
+    }
+
+    stopBrowserListening() {
+      this._browserListening = false;
+      if (this.recognition) {
+        try { this.recognition.stop(); } catch (e) { /* already stopped */ }
+      }
       if (this.voiceBtn) {
         this.voiceBtn.classList.remove('listening');
         this.voiceBtn.setAttribute('aria-pressed', 'false');
         this.voiceBtn.setAttribute('aria-label', this.t('voice_aria'));
       }
       this.input.placeholder = this.t('placeholder');
-      this.input.focus();
+    }
+
+    async startServerRecording() {
+      this._clearStickyVoiceNote();
+      this.hideReviewPanel();
+      if (!this.voiceRecorder) {
+        const VoiceRecorder = await ensureVoiceRecorder();
+        if (!VoiceRecorder) {
+          if (this.browserSttSupported) {
+            this.startBrowserRecognition();
+            return;
+          }
+          this._showVoiceError(this.t('mic_unsupported'));
+          return;
+        }
+        this.voiceRecorder = new VoiceRecorder({
+          maxActiveMs: 60000,
+          keepStream: true,
+          onStateChange: (evt) => this._onRecorderState(evt),
+          onLevel: (level) => {
+            if (this.recLevel) this.recLevel.style.width = `${Math.round(level * 100)}%`;
+          },
+          onTick: ({ activeMs }) => {
+            if (this.recTimer) this.recTimer.textContent = formatMmSs(activeMs);
+          },
+          onError: (err) => this._onRecorderError(err),
+        });
+      }
+      this._voiceTimings = { micClickAt: performance.now() };
+      this.showRecBar(true);
+      if (this.voiceNote) {
+        this.voiceNote.hidden = false;
+        this.voiceNote.textContent = this.t('rec_permission');
+      }
+      try {
+        const sessionId = await this.voiceRecorder.start();
+        this._voiceTimings.micReadyAt = performance.now();
+        this._voiceTimings.sessionId = sessionId;
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[alx-voice] mic_ready_ms',
+            Math.round(this._voiceTimings.micReadyAt - this._voiceTimings.micClickAt));
+        }
+      } catch (err) {
+        this.showRecBar(false);
+        this._onRecorderError(err);
+      }
+    }
+
+    _onRecorderState(evt) {
+      const state = evt.to;
+      if (this.voiceBtn) {
+        const active = state === 'recording' || state === 'paused' || state === 'requesting_permission';
+        this.voiceBtn.classList.toggle('listening', active);
+        this.voiceBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        this.voiceBtn.setAttribute('aria-label', active ? this.t('voice_stop_aria') : this.t('voice_aria'));
+      }
+      if (state === 'recording') {
+        this.showRecBar(true);
+        if (this.recDot) this.recDot.classList.remove('paused');
+        if (this.recPauseBtn) this.recPauseBtn.textContent = this.t('rec_pause');
+        this.input.placeholder = this.t('listening');
+        this._clearStickyVoiceNote();
+      } else if (state === 'paused') {
+        this.showRecBar(true);
+        if (this.recDot) this.recDot.classList.add('paused');
+        if (this.recPauseBtn) this.recPauseBtn.textContent = this.t('rec_resume');
+        if (this.voiceNote) {
+          this.voiceNote.hidden = false;
+          this.voiceNote.textContent = this.t('rec_paused');
+        }
+      } else if (state === 'processing') {
+        this.showRecBar(false);
+        this.input.placeholder = this.t('transcribing');
+      } else if (state === 'idle' || state === 'error') {
+        this.showRecBar(false);
+        if (state === 'idle') this.input.placeholder = this.t('placeholder');
+      }
+      this._localizeRecControls();
+    }
+
+    _onRecorderError(err) {
+      const code = (err && err.code) || '';
+      let msg = this.t('mic_unsupported');
+      if (code === 'permission_denied') msg = this.t('mic_permission_denied');
+      else if (code === 'no_device') msg = this.t('mic_no_device');
+      else if (code === 'limit_reached') msg = this.t('recording_limit');
+      else if (code === 'empty_audio') msg = this.t('stt_failed');
+      this._showVoiceError(msg);
+      this.showRecBar(false);
+    }
+
+    showRecBar(active) {
+      if (this.recBar) this.recBar.setAttribute('data-active', active ? 'true' : 'false');
+    }
+
+    showReviewPanel(active) {
+      if (this.reviewPanel) this.reviewPanel.setAttribute('data-active', active ? 'true' : 'false');
+    }
+
+    hideReviewPanel() {
+      this.showReviewPanel(false);
+      if (this._reviewObjectUrl) {
+        try { URL.revokeObjectURL(this._reviewObjectUrl); } catch (e) { /* noop */ }
+        this._reviewObjectUrl = null;
+      }
+      if (this.reviewAudio) {
+        this.reviewAudio.pause();
+        this.reviewAudio.removeAttribute('src');
+        this.reviewAudio.hidden = true;
+      }
+    }
+
+    togglePauseRecording() {
+      const rec = this.voiceRecorder;
+      if (!rec) return;
+      try {
+        if (rec.state === 'recording') rec.pause();
+        else if (rec.state === 'paused') rec.resume();
+      } catch (err) {
+        this._onRecorderError(err);
+      }
+    }
+
+    async stopAndTranscribe() {
+      const rec = this.voiceRecorder;
+      if (!rec || (rec.state !== 'recording' && rec.state !== 'paused')) return;
+      try {
+        const result = await rec.stop();
+        await this.uploadForTranscription(result);
+      } catch (err) {
+        this._onRecorderError(err);
+      }
+    }
+
+    discardRecording() {
+      if (this.voiceRecorder) this.voiceRecorder.discard();
+      this.hideReviewPanel();
+      this.showRecBar(false);
+      this._activeUploadSession = null;
+      if (this.reviewText) this.reviewText.value = '';
+      this.input.placeholder = this.t('placeholder');
+      this._clearStickyVoiceNote();
+      if (this.voiceBtn) {
+        this.voiceBtn.classList.remove('listening');
+        this.voiceBtn.setAttribute('aria-pressed', 'false');
+        this.voiceBtn.setAttribute('aria-label', this.t('voice_aria'));
+      }
+    }
+
+    replayRecording() {
+      const blob = this.voiceRecorder && this.voiceRecorder.blob;
+      if (!blob || !this.reviewAudio) return;
+      if (!this._reviewObjectUrl) {
+        this._reviewObjectUrl = URL.createObjectURL(blob);
+        this.reviewAudio.src = this._reviewObjectUrl;
+      }
+      this.reviewAudio.hidden = false;
+      this.reviewAudio.play().catch(() => {});
+    }
+
+    async retryTranscription() {
+      const rec = this.voiceRecorder;
+      if (!rec || !rec.blob) return;
+      try {
+        const payload = rec.beginRetry();
+        await this.uploadForTranscription(payload);
+      } catch (err) {
+        this._onRecorderError(err);
+      }
+    }
+
+    sendReviewedTranscript() {
+      const text = (this.reviewText && this.reviewText.value || '').trim();
+      if (!text) return;
+      this.input.value = text;
+      this.hideReviewPanel();
+      if (this.voiceRecorder && this.voiceRecorder.state === 'transcribed') {
+        // Keep blob until next start; mark idle for UI.
+        try { this.voiceRecorder.discard(); } catch (e) { /* noop */ }
+      }
+      this.form.requestSubmit();
+    }
+
+    async uploadForTranscription(result) {
+      const sessionId = result.sessionId;
+      this._activeUploadSession = sessionId;
+      const blob = result.blob;
+      if (!blob || !blob.size) {
+        this._showVoiceError(this.t('stt_failed'));
+        return;
+      }
+      this._voiceTimings = this._voiceTimings || {};
+      this._voiceTimings.blobReadyAt = performance.now();
+      this._voiceTimings.uploadBytes = blob.size;
+
+      this.input.placeholder = this.t('rec_uploading');
+      if (this.voiceNote) {
+        this.voiceNote.hidden = false;
+        this.voiceNote.textContent = this.t('rec_uploading');
+      }
+
+      const form = new FormData();
+      const ext = (result.mimeType || 'audio/webm').includes('mp4') ? 'mp4' : 'webm';
+      form.append('audio', blob, `speech.${ext}`);
+      form.append('language', this.languageForApi());
+
+      const uploadStarted = performance.now();
+      try {
+        if (this.voiceNote) this.voiceNote.textContent = this.t('transcribing');
+        this.input.placeholder = this.t('transcribing');
+        const res = await fetch(`${this.apiUrl}/transcribe`, { method: 'POST', body: form });
+        // Race guard: ignore stale uploads if a newer session started.
+        if (this._activeUploadSession !== sessionId) return;
+        const uploadEnded = performance.now();
+        this._voiceTimings.uploadMs = Math.round(uploadEnded - uploadStarted);
+        if (!res.ok) {
+          let detail = this.t('stt_failed');
+          try {
+            const errBody = await res.json();
+            if (errBody && errBody.detail) detail = String(errBody.detail);
+          } catch (e) { /* noop */ }
+          if (this.voiceRecorder) this.voiceRecorder.markError({ code: 'stt_failed', message: detail });
+          this._showVoiceError(detail);
+          this.showReviewPanel(!!blob);
+          if (this.reviewText) this.reviewText.value = '';
+          return;
+        }
+        const data = await res.json();
+        if (this._activeUploadSession !== sessionId) return;
+        this._voiceTimings.serverTimings = data.timings || null;
+        this._voiceTimings.renderAt = performance.now();
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[alx-voice] timings', {
+            mic_ready_ms: this._voiceTimings.micReadyAt
+              ? Math.round(this._voiceTimings.micReadyAt - this._voiceTimings.micClickAt) : null,
+            upload_ms: this._voiceTimings.uploadMs,
+            upload_bytes: this._voiceTimings.uploadBytes,
+            server: this._voiceTimings.serverTimings,
+          });
+        }
+        // Never show a fake transcript — only real Whisper text.
+        if (!data.text || !String(data.text).trim()) {
+          if (this.voiceRecorder) this.voiceRecorder.markError({ code: 'empty', message: 'empty' });
+          this._showVoiceError(this.t('stt_failed'));
+          return;
+        }
+        if (this.voiceRecorder) this.voiceRecorder.markTranscribed();
+        this.rememberLanguage(data.language_used || this.effectiveLang());
+        if (this.reviewText) this.reviewText.value = String(data.text).trim();
+        this.input.value = String(data.text).trim();
+        this.showReviewPanel(true);
+        if (this.voiceNote) {
+          this.voiceNote.hidden = false;
+          this.voiceNote.textContent = this.t('rec_ready');
+        }
+        this.input.placeholder = this.t('placeholder');
+      } catch (err) {
+        if (this._activeUploadSession !== sessionId) return;
+        if (this.voiceRecorder) this.voiceRecorder.markError({ code: 'stt_failed', message: String(err) });
+        this._showVoiceError(this.t('stt_failed'));
+        this.showReviewPanel(!!blob);
+      }
+    }
+
+    stopListening() {
+      // Compatibility shim for older call sites.
+      if (this._browserListening) this.stopBrowserListening();
+      const rec = this.voiceRecorder;
+      if (rec && (rec.state === 'recording' || rec.state === 'paused')) {
+        this.stopAndTranscribe();
+      }
     }
 
     appendMessage(text, sender, lang = 'auto', citations = []) {
@@ -932,7 +2355,12 @@
       bubble.setAttribute('dir', meta.dir);
 
       const textNode = document.createElement('div');
-      textNode.textContent = text;
+      if (sender === 'assistant') {
+        textNode.className = 'alx-md';
+        textNode.innerHTML = this._renderMarkdown(text);
+      } else {
+        textNode.textContent = text;
+      }
       bubble.appendChild(textNode);
 
       if (citations && citations.length > 0) {
@@ -988,87 +2416,232 @@
         bubble.appendChild(citeBox);
       }
 
-      if (sender === 'assistant' && this.ttsSupported) {
-        const speakBtn = document.createElement('button');
-        speakBtn.type = 'button';
-        speakBtn.className = 'alx-btn-speak';
-        speakBtn.innerHTML = `
-          <svg aria-hidden="true" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-          </svg>
-          <span class="alx-speak-label">${this.t('listen')}</span>
-        `;
-        const labelSpan = speakBtn.querySelector('.alx-speak-label');
-        const setSpeaking = (speaking) => {
-          speakBtn.classList.toggle('speaking', speaking);
-          labelSpan.textContent = speaking ? this.t('stop') : this.t('listen');
-          speakBtn.setAttribute('aria-label', speaking ? this.t('stop_aria') : this.t('listen_aria'));
-        };
-        setSpeaking(false);
-        const bcp = (this.langMeta[resolved] || this.langMeta.en).tts;
-        if (!this.hasTtsVoice(bcp)) {
-          speakBtn.title = this.t('speak_unsupported');
-        }
-        speakBtn.addEventListener('click', () => {
-          if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
-            setSpeaking(false);
-            return;
-          }
-          if (!this.hasTtsVoice(bcp) && this.ttsVoices.length) {
-            this.voiceNote.hidden = false;
-            this.voiceNote.textContent = this.t('speak_unsupported');
-            return;
-          }
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = bcp;
-          const voice = this.ttsVoices.find((v) => (v.lang || '').toLowerCase().startsWith(bcp.split('-')[0].toLowerCase()));
-          if (voice) utterance.voice = voice;
-          utterance.onend = () => setSpeaking(false);
-          utterance.onerror = () => {
-            setSpeaking(false);
-            this.voiceNote.hidden = false;
-            this.voiceNote.textContent = this.t('speak_unsupported');
-          };
-          setSpeaking(true);
-          window.speechSynthesis.speak(utterance);
-        });
-        bubble.appendChild(speakBtn);
+      if (sender === 'assistant') {
+        this._attachMessageActions(bubble, text, resolved, { allowRegenerate: true });
       }
 
       this.messagesContainer.appendChild(bubble);
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      return bubble;
+    }
+
+    _attachMessageActions(bubble, text, lang, opts) {
+      const actions = document.createElement('div');
+      actions.className = 'alx-msg-actions';
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.textContent = this.t('copy');
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          copyBtn.textContent = this.t('copied');
+          setTimeout(() => { copyBtn.textContent = this.t('copy'); }, 1500);
+        } catch (e) {
+          copyBtn.textContent = this.t('copy');
+        }
+      });
+      actions.appendChild(copyBtn);
+
+      if (opts && opts.allowRegenerate) {
+        const regenBtn = document.createElement('button');
+        regenBtn.type = 'button';
+        regenBtn.textContent = this.t('regenerate');
+        regenBtn.disabled = !navigator.onLine;
+        regenBtn.title = navigator.onLine ? this.t('regenerate') : this.t('offline_ai_note');
+        regenBtn.addEventListener('click', () => this.regenerateLastAnswer());
+        actions.appendChild(regenBtn);
+      }
+
+      if (this.ttsSupported) {
+        const speakBtn = document.createElement('button');
+        speakBtn.type = 'button';
+        speakBtn.className = 'alx-btn-speak';
+        speakBtn.innerHTML = `<span class="alx-speak-label">${this.t('listen')}</span>`;
+        const labelSpan = speakBtn.querySelector('.alx-speak-label');
+        const bubbleId = `tts-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        bubble.dataset.ttsId = bubbleId;
+        const bcp = (this.langMeta[lang] || this.langMeta.en).tts;
+        if (!this.hasTtsVoice(bcp)) speakBtn.title = this.t('speak_unsupported');
+        speakBtn.addEventListener('click', () => this._toggleTts(bubbleId, text, bcp, speakBtn, labelSpan));
+        actions.appendChild(speakBtn);
+      }
+      bubble.appendChild(actions);
+    }
+
+    _resetAllSpeakButtons() {
+      this.shadowRoot.querySelectorAll('.alx-btn-speak').forEach((btn) => {
+        btn.classList.remove('speaking', 'paused');
+        const label = btn.querySelector('.alx-speak-label');
+        if (label) label.textContent = this.t('listen');
+        btn.setAttribute('aria-label', this.t('listen_aria'));
+      });
+    }
+
+    _stopTts() {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        try { window.speechSynthesis.cancel(); } catch (e) { /* noop */ }
+      }
+      this._ttsController = { utterance: null, bubbleId: null, paused: false };
+      this._resetAllSpeakButtons();
+    }
+
+    _toggleTts(bubbleId, text, bcp, speakBtn, labelSpan) {
+      if (!this.ttsSupported) return;
+      const syn = window.speechSynthesis;
+      const ctrl = this._ttsController;
+
+      // Same bubble currently speaking → pause or resume.
+      if (ctrl.bubbleId === bubbleId && syn.speaking) {
+        if (!ctrl.paused && typeof syn.pause === 'function') {
+          syn.pause();
+          ctrl.paused = true;
+          speakBtn.classList.add('paused');
+          labelSpan.textContent = this.t('resume_tts');
+          return;
+        }
+        if (ctrl.paused && typeof syn.resume === 'function') {
+          syn.resume();
+          ctrl.paused = false;
+          speakBtn.classList.remove('paused');
+          labelSpan.textContent = this.t('pause_tts');
+          return;
+        }
+        // Fallback browsers without pause: stop.
+        this._stopTts();
+        return;
+      }
+
+      // Different bubble or idle → start fresh (no overlapping audio).
+      this._stopTts();
+      if (!this.hasTtsVoice(bcp) && this.ttsVoices.length) {
+        this._showVoiceError(this.t('speak_unsupported'));
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = bcp;
+      const voice = this.ttsVoices.find((v) => (v.lang || '').toLowerCase().startsWith(bcp.split('-')[0].toLowerCase()));
+      if (voice) utterance.voice = voice;
+      utterance.onend = () => {
+        this._ttsController = { utterance: null, bubbleId: null, paused: false };
+        this._resetAllSpeakButtons();
+      };
+      utterance.onerror = () => {
+        this._ttsController = { utterance: null, bubbleId: null, paused: false };
+        this._resetAllSpeakButtons();
+        this._showVoiceError(this.t('speak_unsupported'));
+      };
+      this._ttsController = { utterance, bubbleId, paused: false };
+      speakBtn.classList.add('speaking');
+      labelSpan.textContent = this.t('pause_tts');
+      speakBtn.setAttribute('aria-label', this.t('stop_aria'));
+      syn.speak(utterance);
+    }
+
+    mapAnswerSource(data) {
+      if (!data) return 'none';
+      const status = data.status || '';
+      if (status === 'not_found' || status === 'out_of_scope' || status === 'needs_clarification') {
+        return 'none';
+      }
+      if (data.fallback_reason) return 'fallback';
+      // Prefer Phase 7 source_type when the API provides it — but never trust
+      // course_grounded / Gemini labels on empty or failed answers.
+      const st = data.source_type;
+      if (st && st !== 'none') return st;
+      if (st === 'none') return 'none';
+      if (data.cache_hit) return 'cache';
+      const src = data.answer_source || data.source || '';
+      if (!src || src === 'none') return 'none';
+      if (src === 'cache') return 'cache';
+      if (src === 'cloud_general') return 'general_knowledge';
+      if (src === 'cloud') return 'course_grounded';
+      if (src === 'faq') return 'faq';
+      if (src === 'local') return 'local_course';
+      if (src === 'social') return 'social';
+      if (src === 'careers') return 'careers';
+      return 'none';
+    }
+
+    _createTypingBubble(online) {
+      const statusBubble = document.createElement('div');
+      statusBubble.className = 'alx-bubble alx-bubble-status';
+      statusBubble.setAttribute('aria-live', 'polite');
+      statusBubble.setAttribute('aria-label', this.t('typing'));
+      const typing = document.createElement('div');
+      typing.className = 'alx-typing';
+      typing.innerHTML = '<span></span><span></span><span></span>';
+      const label = document.createElement('span');
+      label.style.marginLeft = '8px';
+      label.textContent = online ? this.t('loading') : this.t('loading_local');
+      statusBubble.appendChild(typing);
+      statusBubble.appendChild(label);
+      return statusBubble;
+    }
+
+    _setSubmitting(active) {
+      this.isSubmitting = !!active;
+      if (this.sendBtn) this.sendBtn.disabled = !!active;
+      if (this.input) this.input.disabled = !!active;
     }
 
     async handleSubmit(e) {
       e.preventDefault();
+      if (this.isSubmitting) return;
       const query = this.input.value.trim();
       if (!query) return;
+      await this._sendChat(query, { regenerate: false });
+    }
 
+    async regenerateLastAnswer() {
+      if (!navigator.onLine) {
+        this._showVoiceError(this.t('offline_ai_note'));
+        return;
+      }
+      if (!this._lastUserMessage || this.isSubmitting) return;
+      await this._sendChat(this._lastUserMessage, { regenerate: true, skipUserBubble: true });
+    }
+
+    async retryLastUserMessage() {
+      if (!this._lastUserMessage || this.isSubmitting) return;
+      await this._sendChat(this._lastUserMessage, { regenerate: false });
+    }
+
+    async _sendChat(query, options) {
+      const opts = options || {};
+      this._setSubmitting(true);
       this.scope = this.detectScope();
       this.updateScopeBadge();
-      this.appendMessage(query, 'user', this.uiLangCode());
+      this._lastUserMessage = query;
+      if (!opts.skipUserBubble) {
+        if (this.welcomeWrap && this.messagesContainer.contains(this.welcomeWrap)) {
+          this.welcomeWrap.remove();
+        }
+        this.appendMessage(query, 'user', this.uiLangCode());
+      }
       this.input.value = '';
+      if (this.input && this.input.style) this.input.style.height = 'auto';
+      this.hideReviewPanel();
 
       const online = typeof navigator === 'undefined' ? true : navigator.onLine;
-      const statusBubble = document.createElement('div');
-      statusBubble.className = 'alx-bubble alx-bubble-status';
-      statusBubble.textContent = online ? this.t('loading') : this.t('loading_local');
+      const statusBubble = this._createTypingBubble(online);
       this.messagesContainer.appendChild(statusBubble);
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-      const recentHistory = (this.chatHistory || []).slice(-4).map(t => ({ role: t.role, content: t.content }));
-      this.chatHistory = this.chatHistory || [];
-      this.chatHistory.push({ role: 'user', content: query, lang: this.uiLangCode() });
-      this._saveStoredHistory();
+      const recentHistory = (this.chatHistory || []).slice(-6).map((t) => ({ role: t.role, content: t.content }));
+      if (!opts.skipUserBubble) {
+        this.chatHistory = this.chatHistory || [];
+        this.chatHistory.push({ role: 'user', content: query, lang: this.uiLangCode() });
+        this._saveStoredHistory();
+      }
 
       const payload = {
         session: this.sessionId,
         message: query,
-        language: this.currentLang,
+        language: this.languageForApi(),
         mode: this.simpleModeCheck.checked ? 'simple' : 'normal',
         scope: this.scope,
         history: recentHistory,
+        regenerate: !!opts.regenerate,
       };
 
       try {
@@ -1081,25 +2654,81 @@
           statusBubble.remove();
           if (!res.ok) throw new Error('Server returned ' + res.status);
           const data = await res.json();
-          data.source = data.source || 'cloud';
+          this.rememberLanguage(data.language);
+          data.source = this.mapAnswerSource(data);
           this.renderAssistantResponse(data);
           if (this.offlineRuntime) {
             await this.offlineRuntime.appendHistory({
               session: this.sessionId, scope: this.scope, role: 'assistant',
-              message: data.answer, status: data.status, source: 'cloud',
+              message: data.answer, status: data.status, source: data.source === 'local' ? 'local' : 'cloud',
             });
+            await this._cacheAnswerLocally(payload, data);
           }
         } else {
           await this.answerOffline(payload, statusBubble);
         }
       } catch (err) {
         statusBubble.remove();
-        if (!online || (this.offlineRuntime && !(typeof navigator !== 'undefined' && navigator.onLine))) {
-          await this.answerOffline(payload, null);
-        } else {
-          this.appendMessage(this.t('offline_error'), 'assistant', this.uiLangCode());
+        // Browser may still be "online" while the assistant backend is down — use the pack.
+        const usedPack = await this._tryOfflineFallback(payload);
+        if (!usedPack) {
+          this._appendErrorBubble(this.t('offline_error'));
         }
+      } finally {
+        this._setSubmitting(false);
       }
+    }
+
+    async _cacheAnswerLocally(payload, data) {
+      if (!this.offlineRuntime || !this.offlineRuntime.saveCachedAnswer) return;
+      if (!data || data.status !== 'answered' || !data.answer) return;
+      try {
+        const pack = await this.offlineRuntime.getPack(payload.scope || this.scope);
+        await this.offlineRuntime.saveCachedAnswer({
+          scope: payload.scope || this.scope,
+          language: data.language || payload.language || 'en',
+          question: payload.message,
+          simple: payload.mode === 'simple',
+          kb_version: pack ? pack.kb_version : '',
+          provider: data.provider,
+          answer_source: data.answer_source || data.source,
+          status: data.status,
+          answer: data.answer,
+          citations: data.citations || [],
+          confidence: data.confidence,
+        });
+      } catch (e) { /* optional local cache */ }
+    }
+
+    async _tryOfflineFallback(payload) {
+      if (!this.offlineRuntime) return false;
+      const scope = payload.scope || this.scope;
+      const pack = await this.offlineRuntime.getPack(scope);
+      if (!pack) return false;
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        this.appendMessage(this.t('offline_using_pack'), 'assistant', this.uiLangCode());
+      }
+      await this.answerOffline(payload, null);
+      return true;
+    }
+
+    _appendErrorBubble(message) {
+      const bubble = document.createElement('div');
+      bubble.className = 'alx-bubble alx-bubble-assistant alx-bubble-error';
+      bubble.textContent = message;
+      const actions = document.createElement('div');
+      actions.className = 'alx-msg-actions';
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.textContent = this.t('retry');
+      retryBtn.addEventListener('click', () => {
+        bubble.remove();
+        this.retryLastUserMessage();
+      });
+      actions.appendChild(retryBtn);
+      bubble.appendChild(actions);
+      this.messagesContainer.appendChild(bubble);
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
 
     async answerOffline(payload, statusBubble) {
@@ -1114,13 +2743,39 @@
         return;
       }
       const language = this.currentLang === 'auto' ? this.uiLangCode() : this.currentLang;
-      const data = this.offlineRuntime.answerLocally(pack, Object.assign({}, payload, { language }));
-      data.source = 'local';
+      let data = null;
+      if (this.offlineRuntime.getCachedAnswer) {
+        data = await this.offlineRuntime.getCachedAnswer({
+          scope: payload.scope || this.scope,
+          language,
+          question: payload.message,
+          simple: payload.mode === 'simple',
+          kb_version: pack.kb_version,
+        });
+      }
+      if (!data) {
+        data = this.offlineRuntime.answerLocally(pack, Object.assign({}, payload, { language }));
+      }
+      data.connectivity = 'offline';
+      data.course_id = payload.scope || this.scope || pack.scope;
+      if (data.cache_hit) {
+        data.answer_source = 'cache';
+        data.source_type = 'cache';
+      } else if (data.status === 'answered') {
+        data.answer_source = data.answer_source || 'local';
+        data.source_type = 'local_course';
+      } else {
+        data.source_type = data.source_type || 'none';
+      }
+      data.source = this.mapAnswerSource(data);
       this.renderAssistantResponse(data);
       await this.offlineRuntime.appendHistory({
         session: this.sessionId, scope: this.scope, role: 'assistant',
         message: data.answer, status: data.status, source: 'local',
       });
+      if (data.status === 'answered') {
+        await this._cacheAnswerLocally(payload, data);
+      }
       if (data.status === 'not_found') {
         await this.offlineRuntime.recordUnanswered({
           session: this.sessionId, scope: this.scope, message: payload.message, language,
@@ -1130,6 +2785,9 @@
     }
 
     renderAssistantResponse(data) {
+      if (this.welcomeWrap && this.messagesContainer.contains(this.welcomeWrap)) {
+        this.welcomeWrap.remove();
+      }
       if (data && data.answer) {
         this.chatHistory = this.chatHistory || [];
         this.chatHistory.push({
@@ -1144,7 +2802,11 @@
       this.appendMessage(data.answer, 'assistant', data.language, data.citations || []);
       const bubble = this.messagesContainer.children[this.messagesContainer.children.length - 1];
       if (bubble && beforeCount < this.messagesContainer.children.length) {
-        this.appendAnswerBadge(bubble, data.source === 'local' ? 'local' : 'cloud');
+        const source = data.source || this.mapAnswerSource(data);
+        this.appendAnswerBadge(bubble, source);
+      }
+      if (this._lastUserMessage) {
+        this.persistTurn(this._lastUserMessage, data || {});
       }
     }
 
