@@ -16,11 +16,11 @@ env/
 *.env.local
 
 # Runtime data (SQLite and its WAL files)
-*.db
-*.db-wal
-*.db-shm
-*.sqlite3
-var/
+# *.db
+# *.db-wal
+# *.db-shm
+# *.sqlite3
+# var/
 
 # Editors and OS
 .vscode/
